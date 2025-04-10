@@ -1,0 +1,26 @@
+# required arguments
+input_seqs: null
+primers: null
+
+output_dir: output
+
+enzyme: BsaI
+upstream_bbsite: null
+downstream_bbsite: null
+other_used_sites: null
+ligation_data: T4_18h_37C
+
+njunctions: null
+nopt_steps: 1000
+nopt_runs: 5
+njobs: 1
+oligo_len: 300
+
+add_primers: true
+pad_oligos: true
+
+dev: false  # remove
+min_size: 40
+other_enzymes: null
+opt_seeds: null
+optimization: simulated_annealing

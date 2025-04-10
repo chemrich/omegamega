@@ -1,0 +1,13 @@
+name: omega
+channels:
+  - conda-forge
+dependencies:
+  - biopython=1.83
+  - python=3.10.14
+  - pandas
+  - numpy=1.26
+  - jsonargparse
+  - more-itertools
+  - tqdm
+  - joblib
+  - ipykernel

@@ -1,0 +1,25 @@
+input_seqs: data/fastas/gfp_test_install.fasta
+primers: data/test_primers.csv
+
+output_dir: output/test_install
+
+enzyme: BsaI
+downstream_bbsite: CATT
+upstream_bbsite: CTAA
+ligation_data: T4_18h_37C
+
+njunctions: 50
+nopt_steps: 100
+nopt_runs: 1
+
+add_primers: true
+pad_oligos: true
+dev: false  # remove
+min_size: 40  # remove
+njobs: 1
+
+oligo_len: 300
+opt_seeds: null
+optimization: simulated_annealing
+other_enzymes: null
+other_used_sites: null
