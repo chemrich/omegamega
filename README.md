@@ -73,7 +73,7 @@ In our paper, we use the fidelity data for an 18 hr digest at 37C using T4 DNA l
 2. Set up PCR reactions for each subpool following Table 1.
 3. Amplify subpools with the protocol in Table 2. IMPORTANT NOTE: the annealing temperature for step 3 is optimized for the Subramanian et al. primers. We recommend these primers, but remember to adjust the annealing temperature if using different primers.
 4. Clean up each PCR reaction individually. Any clean-up that recovers product is fine.
-5. Set up Golden Gate assemblies for each subpool according to Table 2.
+5. Set up Golden Gate assemblies for each subpool according to Table 3.
 6.  Digest fragments for 2 hrs. at 37 ºC.
 7. Add 1,000 Units of T4 Ligase (NEB, [M0202T](https://www.neb.com/en-us/products/m0202-t4-dna-ligase?srsltid=AfmBOoqSsfxBZGP0h1DDVgG9X7KYoqLw37nNvaB6QNiYlLoHwVRUQ0yN)) to each reaction.
 	- We recommend the higher concentration since this will not significantly change the assembly reaction volume.
