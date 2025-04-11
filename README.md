@@ -42,8 +42,8 @@ python ./code/omega.py genes --config configs/template.yml \
     --nopt_runs 5
 ```
 
-#### Modify arguments with commandline
-OMEGA uses a config to set various runtime parameters. Any of these can be passed as commandline arguments that override the default config values. For example, the below code updates the number of GG sites per subpool from 50 to 70 without modifying the config. For a full explanation of OMEGA parameters, please see Options.
+#### Modify arguments with command line
+OMEGA uses a config to set various runtime parameters. Any of these can be passed as command line arguments that override the default config values. For example, the below code updates the number of GG sites per subpool from 50 to 70 without modifying the config. For a full explanation of OMEGA parameters, please see Options.
 ```
 python ./code/omega.py --config configs/test_install.yml \
     --njunctions 70
@@ -60,7 +60,7 @@ OMEGA includes 3 files as output. These are written to the output directly indic
 #### Explanation on fidelity calculations
 We report fidelity in 3 ways. The first is `fidelity`, which is the same fidelity calculation reported in Pryor et al. This assumes that all GG sites are being used in a single sequential assembly - it does not fully reflect OMEGA conditions. This metric is used to guide fragment design.
 
-We also calculate the fidelity for each individual gene and report the lowest fidelity for each subpool as `min_gene_fidelity`. This is the more relevant metric for OMEGA. `min_gene_fidelity` takes into account the complex assembly background while limiting the fidelity calculation to the relevant gene length. `min_site_fidelity` reports the the least orthogonal site included in the optimized sites.
+We also calculate the fidelity for each individual gene and report the lowest fidelity for each subpool as `min_gene_fidelity`. This is the more relevant metric for OMEGA. `min_gene_fidelity` takes into account the complex assembly background while limiting the fidelity calculation to the relevant gene length. `min_site_fidelity` reports the least orthogonal site included in the optimized sites.
 
 
 ## A note on assembly conditions
@@ -81,13 +81,13 @@ OMEGA is still being refined - some arguments were created during development th
 - `downstream_bbsite`: downstream vector ligation site. (ex. TTAG)
 - `ligation_data`: Ligation frequency data from Potapov et al. to use in fidelity calculation. All experiments in OMEGA paper used T4_18h_37C, which use T4 ligase and an 18 hour incubation at 37C. Accepted options are [T4_01h_25C, T4_18h_25C, T4_01h_37C, T4_18h_37C] from Potapov et al. and [BsaI_cycling, BbsI_cycling, BsmBI_cycling, Esp3I_cycling, SapI_cycling] from Pryor et al.
 - `njunctions`: number of Golden Gate sites used to assemble each subpool. This number includes backbone vector sites, so for example if you specify njunctions=50, 48 GG sites are used to design fragments.
-- `nopt_steps`: number of optimization steps used to design GG sites. The default is 3000. 
-- `nopt_runs`: the number of times OMEGA will design GG sites for each subpool. Each run uses a separate random seed and the run with the best fidelity is taken as the solution. Increasing run number is recommended for improving fidelty more than `nopt_steps`.
+- `nopt_steps`: number of optimization steps used to design GG sites. The default is 3000.
+- `nopt_runs`: the number of times OMEGA will design GG sites for each subpool. Each run uses a separate random seed and the run with the best fidelity is taken as the solution. Increasing run number is recommended for improving fidelity more than `nopt_steps`.
 - `add_primers`: whether primers should be added to oligopool sequences in `oligo_order.csv`. Default is True.
 - `pad_oligos`: whether random DNA should be added between the GG site and primer binding site. DNA does not include Type IIS restriction enzyme indicated by `enzyme`. Future updates will add support to exclude any DNA sequence to support downstream cloning applications that may use other kinds of restriction enzymes.
 - `njobs`: number of CPUs to run jobs in parallel when optimizing a single subpool. OMEGA uses `joblib` to parallelize runs defined by `nopt_runs` or `opt_seeds`. The default value is 1, but it's recommended to use more than that when optimizing pools. It significantly speeds up OMEGA.
 - `oligo_len`: max oligo length.
-- `opt_seeds`: Instead of indicating `nopt_runs`, instead provide a list of random seeds to use to intialize fragment design. This argument is partly an artifact from development, but can be useful for reproducibility. The number of seeds provided indicates the number of optimizations run for each pool. `opt_seeds` is mutually exclusive with `nopt_runs`. `nopt_runs` is sufficient in nearly all cases.
+- `opt_seeds`: Instead of indicating `nopt_runs`, instead provide a list of random seeds to use to initialize fragment design. This argument is partly an artifact from development, but can be useful for reproducibility. The number of seeds provided indicates the number of optimizations run for each pool. `opt_seeds` is mutually exclusive with `nopt_runs`. `nopt_runs` is sufficient in nearly all cases.
 
 
 ## References
