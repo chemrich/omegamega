@@ -106,7 +106,7 @@ Nuclease free water | - | Bring to 25 µL |
 
 <br/>
 
-**Table 2. PCR protocol. Adapted from Twists Oligopool amplification guidelines.
+**Table 2. PCR protocol.** Adapted from [Twists Oligopool amplification guidelines](https://www.twistbioscience.com/sites/default/files/resources/2019-09/Guidelines_OligoPools_%20Amplification_29Aug19_Rev5.1.pdf).
 | PCR Step | Temperature | Time|
 |--|--|--|
 | 1: Initial denaturation | 95 ºC | 3 min. |
