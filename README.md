@@ -71,8 +71,9 @@ In our paper, we use the fidelity data for an 18 hr digest at 37C using T4 DNA l
 
 1. Dilute oligopool to 1 ng/µL using nuclease free water.
 2. Set up PCR reactions for each subpool following Table 1.
-3. Amplify subpools with the following protocol. IMPORTANT NOTE: the annealing temperature for step 3 is optimized for the Subramanian et al. primers. We recommend these primers, but remember to adjust the annealing temperature if using different primers.\
+3. Amplify subpools with the following protocol. IMPORTANT NOTE: the annealing temperature for step 3 is optimized for the Subramanian et al. primers. We recommend these primers, but remember to adjust the annealing temperature if using different primers.
 
+PCR program:
 > 1. 98 ºC, 3 min.
 > 2. 98 ºC, 20 sec.
 > 3. 61 ºC, 15 sec.
