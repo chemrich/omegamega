@@ -67,6 +67,51 @@ We also calculate the fidelity for each individual gene and report the lowest fi
 
 In our paper, we use the fidelity data for an 18 hr digest at 37C using T4 DNA ligase because these conditions generated the highest fidelity GG sites. We include data for other enzymes/assembly conditions as provided by Potapov et al. and Pryor et al., but we *strongly* recommend using BsaI and the T4_18h_37C ligation data. These are the default for all configs.
 
+## Assembly protocol
+
+1. Dilute oligopool to 1 ng/µL using nuclease free water.
+2. Set up PCR reactions for each subpool following Table 1.
+3. Amplify subpools with the following protocol. IMPORTANT NOTE: the annealing temperature for step 3 is optimized for the Subramanian et al. primers. We recommend these primers, but remember to adjust the annealing temperature if using different primers.
+	1. 98 ºC, 3 min.
+	2. 98 ºC, 20 sec.
+	3. 61 ºC, 15 sec.
+	4. 72 ºC, 15 sec.
+	5. Repeat steps 2-4 for 35 cycles
+	6. 72 ºC, 1 min.
+4. Clean up each PCR reaction individually. Any clean-up that recovers product is fine.
+5. Set up Golden Gate assemblies for each subpool according to Table 2.
+6.  Digest fragments for 2 hrs. at 37 ºC.
+7. Add 1,000 Units of T4 Ligase (NEB, [M0202T](https://www.neb.com/en-us/products/m0202-t4-dna-ligase?srsltid=AfmBOoqSsfxBZGP0h1DDVgG9X7KYoqLw37nNvaB6QNiYlLoHwVRUQ0yN)) to each reaction.
+	- We recommend the higher concentration since this will not significantly change the assembly reaction volume.
+8. Incubate reaction for 18 hours at 37 ºC
+9. Perform a final incubation at 65 ºC for 15 mins to heat inactivate T4 ligase.
+10. Combine all Golden Gate assemblies into a single tube and gently mix. Perform a final clean-up with full library.
+11. Library is ready to transform into cells.
+
+Note: some applications may require PCR on the assembled library. If so, it's recommended that you do an additional digest after this step since any remaining empty vectors will likely be enriched in the PCR product since they are significantly smaller than complete assemblies.
+  
+<br/>
+
+**Table 1. PCR setup.** Adapted from [Twist's recommended oligopool amplification guidelines](https://www.twistbioscience.com/sites/default/files/resources/2019-09/Guidelines_OligoPools_%20Amplification_29Aug19_Rev5.1.pdf).
+| Component | Final concentration | Per 25 µL reaction|
+|--|--|--|
+| Oligopool (1 ng/µL) | 0.04 ng/µL | 1 µL |
+| Forward primer (10 µM) | 0.3 µM | 0.75 µL |
+| Reverse primer (10 µM) | 0.3 µM | 0.75 µL |
+2x KAPA HiFi HotStart ReadyMix | 1x | 12.5 µL |
+Nuclease free water | - | Bring to 25 µL |
+
+<br/>
+
+**Table 2. Golden Gate setup.** Reagents used to assemble each subpool. Assemblies use a 20 µL reaction.
+| Component | Per 20 µL reaction|
+|--|--|--|
+| PCR product | 18:1 insert to vector molar ratio |
+| Destination vector | 75 ng |
+| BsaI (15 U/µL) | 15 U | 0.75 µL |
+T4 Ligase buffer (10x) | 1 µL | 12.5 µL |
+Nuclease free water | Bring to 20 µL |
+** T4 Ligase is added after a 2 hr. digest
 ## Options
 
 All default options are set in `configs/genes_test.yml` and `configs/template.yml`. Each option can be included as command line arguments, which will override the config values. Please see below for a list of all options with a brief explanation.
