@@ -71,7 +71,7 @@ In our paper, we use the fidelity data for an 18 hr digest at 37C using T4 DNA l
 
 1. Dilute oligopool to 1 ng/µL using nuclease free water.
 2. Set up PCR reactions for each subpool following Table 1.
-3. Amplify subpools with the following protocol. IMPORTANT NOTE: the annealing temperature for step 3 is optimized for the Subramanian et al. primers. We recommend these primers, but remember to adjust the annealing temperature if using different primers.
+3. Amplify subpools with the protocol in Table 2. IMPORTANT NOTE: the annealing temperature for step 3 is optimized for the Subramanian et al. primers. We recommend these primers, but remember to adjust the annealing temperature if using different primers.
 
 PCR program:
 > 1. 98 ºC, 3 min.
@@ -106,7 +106,21 @@ Nuclease free water | - | Bring to 25 µL |
 
 <br/>
 
-**Table 2. Golden Gate setup.** Reagents used to assemble each subpool. Assemblies use a 20 µL reaction.
+**Table 2. PCR protocol. Adapted from Twists Oligopool amplification guidelines.
+| PCR Step | Temperature | Time|
+|--|--|--|
+| 1: Initial denaturation | 95 ºC | 3 min. |
+| 2: Denaturation | 98 ºC | 20 sec. |
+| 3: Annealing | 61 ºC | 15 sec. |
+| 4: Extension | 72 ºC | 15 sec. |
+| 5: Repeat steps 2-4 for 34 cycles. | - | - |
+| 6: Final extension | 72 ºC | 1 min. |
+
+
+
+<br/>
+
+**Table 3. Golden Gate setup.** Reagents used to assemble each subpool. Assemblies use a 20 µL reaction. T4 Ligase is added after a 2 hr. digest.
 | Component | Per 20 µL reaction|
 |--|--|
 | PCR product | 18:1 insert to vector molar ratio |
@@ -115,7 +129,6 @@ Nuclease free water | - | Bring to 25 µL |
 T4 Ligase buffer (10x) | 1 µL |
 Nuclease free water | Bring to 20 µL |
 
-** T4 Ligase is added after a 2 hr. digest
 
 ## Options
 
