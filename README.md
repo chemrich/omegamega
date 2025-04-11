@@ -71,13 +71,15 @@ In our paper, we use the fidelity data for an 18 hr digest at 37C using T4 DNA l
 
 1. Dilute oligopool to 1 ng/µL using nuclease free water.
 2. Set up PCR reactions for each subpool following Table 1.
-3. Amplify subpools with the following protocol. IMPORTANT NOTE: the annealing temperature for step 3 is optimized for the Subramanian et al. primers. We recommend these primers, but remember to adjust the annealing temperature if using different primers.
-	1. 98 ºC, 3 min.
-	2. 98 ºC, 20 sec.
-	3. 61 ºC, 15 sec.
-	4. 72 ºC, 15 sec.
-	5. Repeat steps 2-4 for 35 cycles
-	6. 72 ºC, 1 min.
+3. Amplify subpools with the following protocol. IMPORTANT NOTE: the annealing temperature for step 3 is optimized for the Subramanian et al. primers. We recommend these primers, but remember to adjust the annealing temperature if using different primers.\
+
+> 1. 98 ºC, 3 min.
+> 2. 98 ºC, 20 sec.
+> 3. 61 ºC, 15 sec.
+> 4. 72 ºC, 15 sec.
+> 5. Repeat steps 2-4 for 35 cycles
+> 6. 72 ºC, 1 min.
+
 4. Clean up each PCR reaction individually. Any clean-up that recovers product is fine.
 5. Set up Golden Gate assemblies for each subpool according to Table 2.
 6.  Digest fragments for 2 hrs. at 37 ºC.
@@ -111,6 +113,7 @@ Nuclease free water | - | Bring to 25 µL |
 | BsaI (15 U/µL) | 15 U |
 T4 Ligase buffer (10x) | 1 µL |
 Nuclease free water | Bring to 20 µL |
+
 ** T4 Ligase is added after a 2 hr. digest
 
 ## Options
