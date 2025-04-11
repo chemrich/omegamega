@@ -105,13 +105,14 @@ Nuclease free water | - | Bring to 25 µL |
 
 **Table 2. Golden Gate setup.** Reagents used to assemble each subpool. Assemblies use a 20 µL reaction.
 | Component | Per 20 µL reaction|
-|--|--|--|
+|--|--|
 | PCR product | 18:1 insert to vector molar ratio |
 | Destination vector | 75 ng |
-| BsaI (15 U/µL) | 15 U | 0.75 µL |
-T4 Ligase buffer (10x) | 1 µL | 12.5 µL |
+| BsaI (15 U/µL) | 15 U |
+T4 Ligase buffer (10x) | 1 µL |
 Nuclease free water | Bring to 20 µL |
 ** T4 Ligase is added after a 2 hr. digest
+
 ## Options
 
 All default options are set in `configs/genes_test.yml` and `configs/template.yml`. Each option can be included as command line arguments, which will override the config values. Please see below for a list of all options with a brief explanation.
