@@ -1,6 +1,6 @@
 # OMEGA
 
-This is the code to run the OMEGA program presented in Freschlin et al. bioRxiv (2024). We provide example files and preliminary documentation on OMEGA options. Please note that the code provided below may contain bugs. 
+This is the code to run the OMEGA program presented in Freschlin et al. bioRxiv (2024). We provide example files and preliminary documentation on OMEGA options. We have not exhaustively tested this code. If you encounter any errors, please open an issue or submit a pull request.
 
 ## Install OMEGA
 OMEGA can be run using the minimal conda environment provided with this code. Alternatively, you can open the `omega_colab.ipynb` notebook in Google Colab and run OMEGA there if there is an installation problem with the conda environment.
@@ -11,7 +11,7 @@ conda activate omega
 ```
 
 #### Verify installation
-We provide a test optimization to verify install. It performs a full library desig protocol using very few optimization steps so it is fast.
+We provide a test optimization to verify install. It performs a full library design protocol using very few optimization steps so it is fast.
 ```
 python ./code/omega.py genes --config configs/test_install.yml
 ```
@@ -60,7 +60,7 @@ OMEGA includes 3 files as output. These are written to the output directly indic
 #### Explanation on fidelity calculations
 We report fidelity in 3 ways. The first is `fidelity`, which is the same fidelity calculation reported in Pryor et al. This assumes that all GG sites are being used in a single sequential assembly - it does not fully reflect OMEGA conditions. This metric is used to guide fragment design.
 
-We also calculate the fidelity for each individual gene and report the lowest fidelity for each subpool as `min_gene_fidelity`. This is the more relavent metric for OMEGA. `min_gene_fidelity` takes into account the complex assembly background while limiting the fidelity calculation to the relavent gene length. `min_site_fidelity` reports the the least orthogonal site included in the optimized sites.
+We also calculate the fidelity for each individual gene and report the lowest fidelity for each subpool as `min_gene_fidelity`. This is the more relevant metric for OMEGA. `min_gene_fidelity` takes into account the complex assembly background while limiting the fidelity calculation to the relevant gene length. `min_site_fidelity` reports the the least orthogonal site included in the optimized sites.
 
 
 ## A note on assembly conditions
@@ -92,10 +92,10 @@ OMEGA is still being refined - some arguments were created during development th
 
 ## References
 
-Freschlin, C. F., Yang, K. K., Romero, P. A. Scalable and cost-efficient custom gene library assembly from oligopools. bioRxiv (2025)
+Freschlin, C. R., Yang, K. K., Romero, P. A. [Scalable and cost-efficient custom gene library assembly from oligopools](https://www.biorxiv.org/content/10.1101/2025.03.22.644747v1). bioRxiv (2025)
 
-Pryor, J. M. et al. Enabling one-pot Golden Gate assemblies of unprecedented complexity using data-optimized assembly design. PLoS One 15, e0238592 (2020)
+Pryor, J. M. et al. [Enabling one-pot Golden Gate assemblies of unprecedented complexity using data-optimized assembly design](https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0238592). PLoS One 15, e0238592 (2020)
 
-Subramanian, S. K., Russ, W. P. & Ranganathan, R. A set of experimentally validated, mutually orthogonal primers for combinatorially specifying genetic components. Synth Biol 3, (2018).
+Subramanian, S. K., Russ, W. P. & Ranganathan, R. [A set of experimentally validated, mutually orthogonal primers for combinatorially specifying genetic components](https://academic.oup.com/synbio/article/3/1/ysx008/4817474). Synth Biol 3, (2018).
 
-Potapov, V. et al. Comprehensive profiling of four base overhang ligation fidelity by T4 DNA ligase and application to DNA assembly. ACS Synth Biol 7, 2665–2674 (2018)
+Potapov, V. et al. [Comprehensive profiling of four base overhang ligation fidelity by T4 DNA ligase and application to DNA assembly](https://pubs.acs.org/doi/10.1021/acssynbio.8b00333). ACS Synth Biol 7, 2665–2674 (2018)
