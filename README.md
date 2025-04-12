@@ -1,6 +1,6 @@
 # OMEGA
 
-This is the code to run the OMEGA program presented in Freschlin et al. bioRxiv (2024). We provide example files and preliminary documentation on OMEGA options. We have not exhaustively tested this code. If you encounter any errors, please open an issue or submit a pull request.
+This is the code to run the OMEGA program presented in Freschlin et al. bioRxiv (2025). We provide example files and preliminary documentation on OMEGA options. We have not exhaustively tested this code. If you encounter any errors, please open an issue or submit a pull request.
 
 ## Install OMEGA
 OMEGA can be run using the minimal conda environment provided with this code. Alternatively, you can open the `omega_colab.ipynb` notebook in Google Colab and run OMEGA there if there is an installation problem with the conda environment.
