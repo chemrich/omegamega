@@ -116,7 +116,7 @@ Nuclease free water | - | Bring to 25 µL |
 | PCR product | 18:1 insert to vector molar ratio |
 | Destination vector | 75 ng |
 | BsaI (15 U/µL) | 15 U |
-T4 Ligase buffer (10x) | 1 µL |
+T4 Ligase buffer (10x) | 2 µL |
 Nuclease free water | Bring to 20 µL |
 
 
