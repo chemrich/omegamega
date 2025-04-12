@@ -103,7 +103,7 @@ Nuclease free water | - | Bring to 25 µL |
 | 2: Denaturation | 98 ºC | 20 sec. |
 | 3: Annealing | 61 ºC | 15 sec. |
 | 4: Extension | 72 ºC | 15 sec. |
-| 5: Repeat steps 2-4 for 34 cycles. | - | - |
+| 5: Repeat steps 2-4 for 35 cycles. | - | - |
 | 6: Final extension | 72 ºC | 1 min. |
 
 
