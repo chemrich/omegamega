@@ -17,10 +17,9 @@ python ./code/omega.py genes --config configs/test_install.yml
 ```
 
 #### Test a full run
-The following includes commands for a simple library design using 7 subpools. Each subpool uses 50 junctions and is optimized 5 times - the best solution is chosen for fragment design. By default, it uses 5 CPUs to run parallel optimization runs for each subpool. The runtime varies significantly by system. To decrease CPU usage, add `--njobs [N cpus]` after the `--config` argument. 
+The following includes commands for a simple library design using 7 subpools. Each subpool uses 50 junctions and is optimized 5 times - the best solution is chosen for fragment design. By default, it uses 1 CPU to optimize each subpool. The runtime varies significantly by system. To increase CPU usage, add `--njobs [N cpus]` after the `--config` argument. 
 ```
 python ./code/omega.py genes --config configs/genes_test.yml
-#   --njobs 1
 ```
 
 ## Examples
@@ -29,7 +28,7 @@ python ./code/omega.py genes --config configs/genes_test.yml
 
 We provide a template config you can use to optimize your own library. Please see `configs/template.yml` for default values. You can optimize your sequences by filling in the parameters below. We provide the default test primers as the primer argument. These are highly specific primers designed by Subramanian et al. and are what we use to amplify subpools.
 
-For 50 junctions, running the algorithm for 1000 steps and doing 5 independent optimizations for each subpool is sufficient. However, increasing steps to 3k and number of optimizations will marginally improve fidelity. More complex assemblies may require more optimizations steps or runs.
+For 50 junctions, running OMEGA for 1000 steps and doing 5-10 independent optimizations for each subpool is sufficient. However, increasing `nopt_steps` to 3k and `nopt_runs` will improve fidelity. Change these parameters to determine what's best for your specific use case. More complex assemblies may require more optimizations steps or runs.
 
 ```
 python ./code/omega.py genes --config configs/template.yml \
@@ -71,10 +70,10 @@ In our paper, we use the fidelity data for an 18 hr digest at 37C using T4 DNA l
 
 1. Dilute oligopool to 1 ng/µL using nuclease free water.
 2. Set up PCR reactions for each subpool following Table 1.
-3. Amplify subpools with the protocol in Table 2. IMPORTANT NOTE: the annealing temperature for step 3 is optimized for the Subramanian et al. primers. We recommend these primers, but remember to adjust the annealing temperature if using different primers.
-4. Clean up each PCR reaction individually. Any clean-up that recovers product is fine.
+3. Amplify subpools with the protocol in Table 2. IMPORTANT NOTE: the annealing temperature for step 3 is optimized for the Subramanian et al. primers using KAPA HiFi HotStart ReadyMix. We recommend these primers, but remember to adjust the annealing temperature if using different primers and/or polymerase.
+4. Clean up each PCR reaction individually. We used column cleanup, but size selection beads should be fine per Twist's guidelines.
 5. Set up Golden Gate assemblies for each subpool according to Table 3.
-6.  Digest fragments for 2 hrs. at 37 ºC.
+6. Digest fragments for 2 hrs. at 37 ºC.
 7. Add 1,000 Units of T4 Ligase (NEB, [M0202T](https://www.neb.com/en-us/products/m0202-t4-dna-ligase?srsltid=AfmBOoqSsfxBZGP0h1DDVgG9X7KYoqLw37nNvaB6QNiYlLoHwVRUQ0yN)) to each reaction.
 	- We recommend the higher concentration since this will not significantly change the assembly reaction volume.
 8. Incubate reaction for 18 hours at 37 ºC
