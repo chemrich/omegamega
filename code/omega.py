@@ -91,7 +91,7 @@ def genes(
 
     # print input parameters
     print(f"Read {len(input_seqs_recs)} from {input_seqs}.\nSequence lengths are {min(map(lambda x: len(x[1]), input_seqs_recs))} - {min(map(lambda x: len(x[1]), input_seqs_recs))} bp")
-    print(f"Using {enzyme} and {ligation_data.name} data to assemble library.")
+    print(f"Using {enzyme.name} and {ligation_data.name} data to assemble library.")
     print(f"Maximum number of GG sites allowed per pool: {njunctions}")
     print(f"Upstream backbone site: {upstream_bbsite}")
     print(f"Downstream backbone site: {downstream_bbsite}")
