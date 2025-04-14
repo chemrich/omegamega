@@ -84,13 +84,21 @@ def genes(
     other_enzymes = [define_enzyme(e) for e in other_enzymes] if other_enzymes is not None else []
 
     # format input sequences into Gene objects
-    input_seqs = [(rec.id, str(rec.seq)) for rec in SeqIO.parse(input_seqs, 'fasta')]
+    input_seqs_recs = [(rec.id, str(rec.seq)) for rec in SeqIO.parse(input_seqs, 'fasta')]
     other_used_sites = other_used_sites or np.array([])
     primers = PrimerIterator(primers, assembly_enzyme)
     ligation_data = define_ligation_data(ligation_data, assembly_enzyme)
 
+    # print input parameters
+    print(f"Read {len(input_seqs_recs)} from {input_seqs}.\nSequence lengths are {min(map(lambda x: len(x[1]), input_seqs_recs))} - {min(map(lambda x: len(x[1]), input_seqs_recs))} bp")
+    print(f"Using {enzyme} and {ligation_data.name} data to assemble library.")
+    print(f"Maximum number of GG sites allowed per pool: {njunctions}")
+    print(f"Upstream backbone site: {upstream_bbsite}")
+    print(f"Downstream backbone site: {downstream_bbsite}")
+
+
     library = Library(
-        genes=input_seqs,
+        genes=input_seqs_recs,
         primers=primers,
         oligo_len=oligo_len,
         enzyme=assembly_enzyme,
@@ -122,9 +130,11 @@ def genes(
 
     optimized_library = library.package_library(add_primers=add_primers, pad_oligo=pad_oligos)
     optimized_library.to_csv(os.path.join(output_dir, 'optimization_results.csv'))
+    print(f"Finished optimization. Saved to {os.path.join(output_dir, 'optimization_results.csv')}")
 
     oligopool = library.package_oligos(add_primers=add_primers, pad_oligo=pad_oligos)
     oligopool.to_csv(os.path.join(output_dir, 'oligo_order.csv'))
+    print(f"Designed {len(oligopool)} oligos. Saved to {os.path.join(output_dir, 'oligo_order.csv')}")
 
     pool_stats = pd.DataFrame.from_dict(
         [{
@@ -143,6 +153,10 @@ def genes(
         } for p, fidelity, seed in library.optimized_pools]
     )
     pool_stats.to_csv(join(output_dir, 'pool_stats.csv'))
+    print(f"Pool-level statistics saved to {join(output_dir, 'pool_stats.csv')}")
+
+    with open(join(output_dir, 'experiment_details.txt'), 'w') as f:
+        f.write(ligation_data.experiment_information())
 
     # if dev, save extra data
     if dev:

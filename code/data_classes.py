@@ -147,10 +147,20 @@ class LigationData:
         else:
             return self.experiment_conditions.site_size == self.assembly_enzyme.site_size
 
+
     def experiment_information(self) -> str:
         """Print experiment data."""
 
-        raise NotImplementedError('Printout with recommended experimental procedure will be added in a future release.')
+        conditions = f"""
+Enzyme: {self.assembly_enzyme.name}
+Ligase: {self.experiment_conditions.ligase}
+Buffer: {self.experiment_conditions.buffer}
+Incubation temperature: {self.experiment_conditions.incubation_temperature}
+Incubation time: {self.experiment_conditions.incubation_time}
+
+Please see GitHub or OMEGA paper for more detailed experimental conditions.
+        """
+        return conditions
 
 
 
