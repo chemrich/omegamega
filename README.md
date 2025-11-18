@@ -1,5 +1,9 @@
 # OMEGA
 
+
+[![DOI](https://zenodo.org/badge/964209533.svg)](https://doi.org/10.5281/zenodo.17637682)
+
+
 This is the code to run the OMEGA program presented in Freschlin et al. bioRxiv (2025). We provide example files and preliminary documentation on OMEGA options. We have not exhaustively tested this code. If you encounter any errors, please open an issue or submit a pull request.
 
 ## Install OMEGA
