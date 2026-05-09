@@ -140,18 +140,21 @@ class Library:
         if len(self.primers) < (len(self.genes)/ngenes_per_pool):
             raise ValueError('Not enough primers for estimated number of pools.')
 
-        # run optimization for each pool
-        it = zip(
+        # run optimization for each pool — parallelize across pools × seeds
+        pool_specs = list(zip(
             count(0),
             chunked_even(self.genes, ngenes_per_pool),
             self.primers
-        )
-        optimized = []
-        #? fix this - make how you save opt trajectories better
-        all_opt_runs = []
+        ))
+
+        jobs = []
+        for i, gene_pool, (pfor, prev) in pool_specs:
+            for rand_seed in opt_seeds:
+                jobs.append((i, gene_pool, pfor, prev, rand_seed))
+
         print('Optimizing library...')
-        for i, gene_pool, (pfor, prev) in tqdm(it, total=npools, ncols=100):
-            opt_results = Parallel(n_jobs=njobs)(delayed(optimize_pools)(
+        results = Parallel(n_jobs=njobs)(
+            delayed(optimize_pools)(
                 name=i,
                 genes=gene_pool,
                 enzyme=self.enzyme,
@@ -166,18 +169,26 @@ class Library:
                 ligation_data=ligation_data,
                 nopt_steps=nopt_steps,
                 random_seed=rand_seed,
-                optimization=optimization
-            ) for rand_seed in opt_seeds)
+                optimization=optimization,
+            )
+            for i, gene_pool, pfor, prev, rand_seed in tqdm(jobs, ncols=100)
+        )
 
-            opt_results.sort(key=lambda x: x[1])
-            # save all opt runs
-            all_opt_runs.extend(opt_results)
-            # save only best for each pool
-            optimized.append(opt_results[-1])
+        # group results by pool index; pick highest-fidelity run per pool
+        all_opt_runs: list = []
+        per_pool: dict = {i: [] for i, *_ in pool_specs}
+        for (i, *_), result in zip(jobs, results):
+            per_pool[i].append(result)
+            all_opt_runs.append(result)
 
+        optimized = []
+        for i, *_ in pool_specs:
+            runs = sorted(per_pool[i], key=lambda x: x[1])
+            optimized.append(runs[-1])
 
         self.all_opt_runs = all_opt_runs
         self.optimized_pools = optimized
+        self._njobs = njobs
 
 
     def estimate_nfrags(self) -> int:
@@ -215,25 +226,21 @@ class Library:
 
     def package_library(self, add_primers: bool = True, pad_oligo: bool = True) -> pd.DataFrame:
         """Get optimization output for all pools in library."""
-        #pylint:disable=line-too-long
-
-        output = pd.concat(
-            [p[0].package_pool(add_primers=add_primers, pad_oligo=pad_oligo) for p in self.optimized_pools],
-            ignore_index=True
+        njobs = getattr(self, "_njobs", 1)
+        frames = Parallel(n_jobs=njobs, backend="threading")(
+            delayed(p[0].package_pool)(add_primers=add_primers, pad_oligo=pad_oligo)
+            for p in self.optimized_pools
         )
-
-        return output
+        return pd.concat(frames, ignore_index=True)
 
     def package_oligos(self, add_primers: bool = True, pad_oligo: bool = True) -> pd.DataFrame:
         """Get oligo output for all pools in library."""
-        #pylint:disable=line-too-long
-
-        output = pd.concat(
-            [p[0].package_oligos(add_primers=add_primers, pad_oligo=pad_oligo) for p in self.optimized_pools],
-            ignore_index=True
+        njobs = getattr(self, "_njobs", 1)
+        frames = Parallel(n_jobs=njobs, backend="threading")(
+            delayed(p[0].package_oligos)(add_primers=add_primers, pad_oligo=pad_oligo)
+            for p in self.optimized_pools
         )
-
-        return output
+        return pd.concat(frames, ignore_index=True)
 
     def __get_max_primer_space(self) -> int:
         """Return largest space taken up by a primer pair in oligo"""
@@ -867,14 +874,18 @@ class Gene:
 
         return forward_site + oligo + reverse_site
     
-    def __add_padding(self, oligo: str) -> str:
+    def __add_padding(self, oligo: str, max_attempts: int = 100000) -> str:
         """Add random DNA padding to oligo."""
         #pylint: disable=unbalanced-tuple-unpacking
 
         extra_space = self.oligo_len - len(self.fprimer.sequence) - len(self.rprimer.sequence) - len(oligo)
+        # Nothing to vary; boundary constraints (if any) are determined entirely
+        # by the upstream fragmentation and primer assignment.
+        if extra_space <= 0:
+            return oligo
         left, right = np.array_split(np.arange(extra_space), 2)
 
-        while True:
+        for _ in range(max_attempts):
 
             left_padding = random_dna(left.size).lower()
             right_padding = random_dna(right.size).lower()
@@ -922,6 +933,13 @@ class Gene:
                 ])
 
                 return candidate_seq
+
+        raise RuntimeError(
+            f"Could not generate clean padding for gene {self.name!r} "
+            f"after {max_attempts} attempts. "
+            f"Illegal sequences {self.illegal_dna_sequences} may be too restrictive "
+            f"given primer/oligo flanking context."
+        )
 
     def __add_primers(self, oligo: str) -> str:
         """Return oligo with forward and reverse primers attached."""
