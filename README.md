@@ -10,23 +10,26 @@
 This is the code to run the OMEGA program presented in Freschlin et al. bioRxiv (2025). We provide example files and preliminary documentation on OMEGA options. We have not exhaustively tested this code. If you encounter any errors, please open an issue or submit a pull request.
 
 ## Install OMEGA
-OMEGA can be run using the minimal conda environment provided with this code. Alternatively, you can open the `omega_colab.ipynb` notebook in Google Colab and run OMEGA there if there is an installation problem with the conda environment.
+This fork uses [uv](https://docs.astral.sh/uv/) for package and environment management. Install uv (`brew install uv` or see the uv docs), then sync the environment:
 
 ```
-conda env create --file environment.yml
-conda activate omega
+uv sync
 ```
+
+This creates a `.venv/` with the locked dependencies from `pyproject.toml` / `uv.lock`. All commands below use `uv run` to execute inside that environment.
+
+If you prefer Colab, you can still open the `omega_google_colab.ipynb` notebook and run OMEGA there.
 
 #### Verify installation
 We provide a test optimization to verify install. It performs a full library design protocol using very few optimization steps so it is fast.
 ```
-python ./code/omega.py genes --config configs/test_install.yml
+uv run python ./code/omega.py genes --config configs/test_install.yml
 ```
 
 #### Test a full run
-The following includes commands for a simple library design using 7 subpools. Each subpool uses 50 junctions and is optimized 5 times - the best solution is chosen for fragment design. By default, it uses 1 CPU to optimize each subpool. The runtime varies significantly by system. To increase CPU usage, add `--njobs [N cpus]` after the `--config` argument. 
+The following includes commands for a simple library design using 7 subpools. Each subpool uses 50 junctions and is optimized 5 times - the best solution is chosen for fragment design. By default, it uses 1 CPU to optimize each subpool. The runtime varies significantly by system. To increase CPU usage, add `--njobs [N cpus]` after the `--config` argument.
 ```
-python ./code/omega.py genes --config configs/genes_test.yml
+uv run python ./code/omega.py genes --config configs/genes_test.yml
 ```
 
 ## Examples
@@ -38,7 +41,7 @@ We provide a template config you can use to optimize your own library. Please se
 For 50 junctions, running OMEGA for 1000 steps and doing 5-10 independent optimizations for each subpool is sufficient. However, increasing `nopt_steps` to 3k and `nopt_runs` will improve fidelity. Change these parameters to determine what's best for your specific use case. More complex assemblies may require more optimizations steps or runs.
 
 ```
-python ./code/omega.py genes --config configs/template.yml \
+uv run python ./code/omega.py genes --config configs/template.yml \
     --input_seqs [.fasta file] \
     --njunctions [number of GG site junctions per subpool] \
     --upstream_bbsite [upstream backbone GG site] \
@@ -51,7 +54,7 @@ python ./code/omega.py genes --config configs/template.yml \
 #### Modify arguments with command line
 OMEGA uses a config to set various runtime parameters. Any of these can be passed as command line arguments that override the default config values. For example, the below code updates the number of GG sites per subpool from 50 to 70 without modifying the config. For a full explanation of OMEGA parameters, please see Options.
 ```
-python ./code/omega.py --config configs/test_install.yml \
+uv run python ./code/omega.py --config configs/test_install.yml \
     --njunctions 70
 ```
 

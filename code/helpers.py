@@ -1,5 +1,6 @@
 """Random helper functions."""
 
+from functools import lru_cache
 from itertools import chain
 from typing import Iterable, Any
 from random import shuffle
@@ -12,29 +13,38 @@ from Bio.Seq import Seq
 from Bio import SeqIO
 
 
+_RC_TABLE = str.maketrans("ACGTacgt", "TGCAtgca")
+
+
+def _rc(seq: str) -> str:
+    return seq.translate(_RC_TABLE)[::-1]
+
+
 def unique_orthogonal(sites) -> bool:
     """Checks if GG sites are orthogonal with the Watson Crick pairs."""
 
-    wc_sites = [str(Seq(s).reverse_complement()) for s in sites]
+    wc_sites = [_rc(s) for s in sites]
 
     return len(set(sites.tolist() + wc_sites)) == len(sites)*2
+
+
+@lru_cache(maxsize=128)
+def _compile_dna_pattern(seq_elements: tuple[str, ...], reverse_complement: bool):
+    """Compile a single regex matching any of seq_elements (and their RCs)."""
+    if reverse_complement:
+        elements = list(chain.from_iterable((s, _rc(s)) for s in seq_elements))
+    else:
+        elements = list(seq_elements)
+    return re.compile("|".join(elements), flags=re.I)
+
 
 def dna_contains_seq(dna: str, *seq_elements: str, reverse_complement: bool = True) -> bool:
     """Checks if dna sequence contains defined sequences.
     True if sequence is present. If reverse_complement is True, then
     searches for reverse complement as well.
     """
-
-    if reverse_complement:
-        pattern = "|".join(
-            list(chain(*[[s, str(Seq(s).reverse_complement())] for s in seq_elements]))
-        )
-    else:
-        pattern = "|".join(list(seq_elements))
-
-    match = re.search(pattern, dna, flags=re.I)
-
-    return match is not None
+    pattern = _compile_dna_pattern(tuple(seq_elements), reverse_complement)
+    return pattern.search(dna) is not None
 
 def count_sequence_element(dna: str, seq_element: str) -> int:
     """Returns number of times a DNA element is found in a DNA
@@ -57,10 +67,16 @@ def dynamic_chunker(iterable: Iterable[Any], chunk_sizes: list[int]) -> Iterable
     for chunk in chunk_sizes:
         yield [next(it) for i in range(chunk)]
 
+_DNA_BASES = np.array(list("ATCG"))
+_DNA_PROBS = np.array([0.3, 0.3, 0.2, 0.2])
+
+
 def random_dna(size: int) -> str:
     """Generate random string of DNA with 40% GC content."""
-
-    return "".join(np.random.choice(list('ATCG'), size=size, p=[.3,.3,.2,.2]).tolist())
+    if size <= 0:
+        return ""
+    bases = np.random.choice(_DNA_BASES, size=size, p=_DNA_PROBS)
+    return bases.view((str, size)).item()
 
 def flatten(iterable: list) -> list:
     """Remove one level of a nested list."""

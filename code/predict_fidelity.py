@@ -1,95 +1,143 @@
+"""Fidelity prediction for Golden Gate site sets.
 
-from typing import Iterable
+The original implementation used pandas .loc with string indices and
+Bio.Seq.reverse_complement inside the SA inner loop, which dominated runtime.
+This module precomputes a numpy-indexed view of the ligation matrix once per
+input DataFrame and serves all queries from that cached view. Public
+signatures are unchanged.
+"""
+
+from __future__ import annotations
+
 from itertools import chain
-from Bio.Seq import Seq
+from typing import Iterable
 
 import numpy as np
 import pandas as pd
 
+_RC_TABLE = str.maketrans("ACGT", "TGCA")
+
+
+def _rc(site: str) -> str:
+    return site.translate(_RC_TABLE)[::-1]
+
+
+_TABLE_CACHE: dict[int, dict] = {}
+
+
+def _get_table(data: pd.DataFrame) -> dict:
+    """Return a cached numpy-indexed view of `data`, keyed by DataFrame id.
+
+    The view exposes:
+        idx_of: dict[str, int] — site string -> canonical index
+        matrix: np.ndarray (N,N) of ligation counts in canonical ordering
+        rc_idx: np.ndarray (N,) where rc_idx[i] = canonical idx of reverse complement of site i
+    """
+    key = id(data)
+    cached = _TABLE_CACHE.get(key)
+    if cached is not None:
+        return cached
+
+    cols = list(data.columns)
+    idx_of = {s: i for i, s in enumerate(cols)}
+    matrix = data.reindex(index=cols, columns=cols).to_numpy(dtype=np.int64, copy=True)
+    rc_idx = np.array([idx_of[_rc(s)] for s in cols], dtype=np.int64)
+
+    cached = {"idx_of": idx_of, "matrix": matrix, "rc_idx": rc_idx}
+    _TABLE_CACHE[key] = cached
+    return cached
+
+
+def _to_idx(sites: Iterable[str], idx_of: dict[str, int]) -> np.ndarray:
+    if isinstance(sites, np.ndarray):
+        sites_iter = sites.tolist()
+    else:
+        sites_iter = list(sites)
+    return np.fromiter((idx_of[s] for s in sites_iter), dtype=np.int64, count=len(sites_iter))
+
 
 def correct_ligations(site: str, wc_site: str, data_matrix: pd.DataFrame) -> int:
-    """Retrieves number of correct ligations observed for a GG site."""
-
-    return data_matrix.loc[site, wc_site]
+    """Number of correct ligations observed for a GG site."""
+    table = _get_table(data_matrix)
+    return int(table["matrix"][table["idx_of"][site], table["idx_of"][wc_site]])
 
 
 def total_ligations(site: str, sites: Iterable[str], data_matrix: pd.DataFrame) -> int:
-    """Retrieves total number of ligations observed for a set of GG sites
-    in reference to a query golden gate site.
-    """
-    wc_sites = [str(Seq(s).reverse_complement()) for s in sites]
-
-    return data_matrix.loc[site, np.concatenate((sites, wc_sites))].sum()
+    """Total ligation events involving `site` against `sites` and their RCs."""
+    table = _get_table(data_matrix)
+    s_idx = table["idx_of"][site]
+    sites_idx = _to_idx(sites, table["idx_of"])
+    targets = np.concatenate([sites_idx, table["rc_idx"][sites_idx]])
+    return int(table["matrix"][s_idx, targets].sum())
 
 
 def site_probability(site: str, sites: Iterable[str], data_matrix: pd.DataFrame) -> float:
-    """Calculate probability of site orthogonality in reference to proposed set of sites."""
+    """Probability of site orthogonality vs. proposed site set."""
+    table = _get_table(data_matrix)
+    matrix = table["matrix"]
+    rc_idx = table["rc_idx"]
+    s_idx = table["idx_of"][site]
+    wc_idx = rc_idx[s_idx]
 
-    wc_site = str(Seq(site).reverse_complement())
+    sites_idx = _to_idx(sites, table["idx_of"])
+    targets = np.concatenate([sites_idx, rc_idx[sites_idx]])
 
-    # get correct ligations for the site and it's watson crick pair
-    site_correct_ligations = correct_ligations(site=site, wc_site=wc_site, data_matrix=data_matrix)
-    wc_correct_ligations = correct_ligations(site=wc_site, wc_site=site, data_matrix=data_matrix)
+    correct = matrix[s_idx, wc_idx] + matrix[wc_idx, s_idx]
+    total = matrix[s_idx, targets].sum() + matrix[wc_idx, targets].sum()
+    return float(correct / total)
 
-    # total correct ligations for both the site and WC pair
-    correct_total = site_correct_ligations + wc_correct_ligations
 
-    # all liagation events
-    total = total_ligations(site, sites, data_matrix) + total_ligations(wc_site, sites, data_matrix)
+def _vectorized_probabilities(sites_idx: np.ndarray, table: dict) -> np.ndarray:
+    """Return per-site orthogonality probabilities for an integer-indexed site array."""
+    matrix = table["matrix"]
+    rc_idx = table["rc_idx"]
+    wc_idx = rc_idx[sites_idx]
+    targets = np.concatenate([sites_idx, wc_idx])
 
-    return correct_total / total
+    correct = matrix[sites_idx, wc_idx] + matrix[wc_idx, sites_idx]
+    total = matrix[sites_idx][:, targets].sum(axis=1) + matrix[wc_idx][:, targets].sum(axis=1)
+    return correct / total
 
 
 def predict_fidelity(sites: Iterable[str], data: pd.DataFrame) -> float:
-    """Calculate the predicted fidelity for a set of GG sites."""
-
-    return np.prod([site_probability(site, sites, data) for site in sites])
-
-def predict_minimum_site(sites: Iterable[list[str]], data: pd.DataFrame) -> float:
-    """Get least orthogonal site from set."""
-
-    return min(site_probability(site, sites, data) for site in sites)
-
-def geneset_fidelity(gene_sites: Iterable[list[str]], data: pd.DataFrame) -> float:
-    """Get fidelities for every gene in a set of genes (typically a pool).
-    
-    Args:
-        gene_sites (Iterable): an iterable containing a list-like container of gene sets.
-
-    Returns:
-        A list of fidelities whose index matches the index of the gene. 
-    """
-
-    pool_sites = list(chain(*gene_sites))
-
-    return [
-        np.prod([site_probability(site, pool_sites, data) for site in sets]) for sets in gene_sites
-    ]
+    """Predicted fidelity for a set of GG sites (product of per-site probabilities)."""
+    table = _get_table(data)
+    sites_idx = _to_idx(sites, table["idx_of"])
+    probs = _vectorized_probabilities(sites_idx, table)
+    return float(np.prod(probs))
 
 
-def predict_minimum(gene_sites: Iterable[np.ndarray], data: pd.DataFrame) -> float:
-    """Return minimum fidelity of things in a pool.
-    
-    Args:
-        pool_sites (Iterable[np.ndarray]): iterable of ndarray's containing gg sites.
-                                           each array corresponds to a gene.
+def predict_minimum_site(sites: Iterable[str], data: pd.DataFrame) -> float:
+    """Least orthogonal site in the proposed set."""
+    table = _get_table(data)
+    sites_idx = _to_idx(sites, table["idx_of"])
+    probs = _vectorized_probabilities(sites_idx, table)
+    return float(probs.min())
 
-    Returns:
-        Lowest fidelity for a gene in a pool.
-    
-    """
+
+def geneset_fidelity(gene_sites: Iterable[Iterable[str]], data: pd.DataFrame) -> list[float]:
+    """Per-gene fidelities given a set of genes (typically a pool)."""
+    gene_sites_list = [list(g) for g in gene_sites]
+    table = _get_table(data)
+    pool_sites = list(chain.from_iterable(gene_sites_list))
+    pool_idx = _to_idx(pool_sites, table["idx_of"])
+    pool_probs = _vectorized_probabilities(pool_idx, table)
+
+    out: list[float] = []
+    cursor = 0
+    for gene in gene_sites_list:
+        n = len(gene)
+        out.append(float(np.prod(pool_probs[cursor : cursor + n])))
+        cursor += n
+    return out
+
+
+def predict_minimum(gene_sites: Iterable[Iterable[str]], data: pd.DataFrame) -> float:
+    """Lowest fidelity for any gene in a pool."""
     return min(geneset_fidelity(gene_sites, data))
 
 
-def predict_average(gene_sites: Iterable[np.ndarray], data: pd.DataFrame) -> float:
-    """Return average fidelity for genes in a pool.
-
-    Args:
-        pool_sites (Iterable[np.ndarray]): iterable of ndarray's containing gg sites.
-                                           each array corresponds to a gene.
-
-    Returns:
-        Average fidelity for a gene in a pool.
-    """
-
-    return sum(geneset_fidelity(gene_sites, data)) / len(gene_sites)
+def predict_average(gene_sites: Iterable[Iterable[str]], data: pd.DataFrame) -> float:
+    """Average fidelity across genes in a pool."""
+    fids = geneset_fidelity(gene_sites, data)
+    return sum(fids) / len(fids)
