@@ -1,5 +1,8 @@
-# OMEGA
+# OMEGAMEGA
 
+> **Note:** This is a fork of [romerolab/omega](https://github.com/romerolab/omega), modified by chemrich starting 2026. Released under the GNU General Public License v3 (see `LICENSE`), the same license as the upstream project.
+>
+> **Primer set:** The bundled `data/test_primers.csv` ships 20 primers that Subramanian et al. (2018) flagged as cross-reactive in their Supplementary Table S1, and is missing one of the validated orthogonal primers (`subra_92`). For new library designs, prefer `data/subramanian_orthogonal.csv` (165 validated primers). See [docs/PRIMER_NOTES.md](docs/PRIMER_NOTES.md) for details.
 
 [![DOI](https://zenodo.org/badge/964209533.svg)](https://doi.org/10.5281/zenodo.17637682)
 
