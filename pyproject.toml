@@ -1,0 +1,29 @@
+[project]
+name = "omegamega"
+version = "0.1.0"
+description = "Fork of romerolab/omega: scalable custom gene library assembly from oligopools"
+readme = "README.md"
+requires-python = ">=3.10,<3.13"
+license = "GPL-3.0-or-later"
+dependencies = [
+    "biopython==1.83",
+    "pandas",
+    "numpy>=1.26,<2.0",
+    "jsonargparse",
+    "more-itertools",
+    "tqdm",
+    "joblib",
+    "regex",
+    "dnachisel",
+    "requests",
+]
+
+[dependency-groups]
+dev = [
+    "ipykernel",
+    "ruff",
+    "pytest",
+]
+
+[tool.uv]
+package = false
