@@ -24,3 +24,7 @@ dev: false  # remove
 min_size: 40
 opt_seeds: null
 optimization: simulated_annealing
+
+# pricing
+pricing_enabled: true   # writes cost_summary.csv next to oligo_order.csv
+twist_quote: false      # set true to also file a live Twist OLIGO_POOLS_REGULAR quote

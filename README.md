@@ -66,6 +66,21 @@ OMEGA includes 3 files as output. These are written to the output directly indic
 
 `pool_stats.csv` is a pool-level view of the optimization results. It provides fidelities, number of genes per pool, number of sites used in each pool, random seed used to design the pool, Type IIS restriction enzyme, and primer information for each pool.
 
+`cost_summary.csv` is a single-row pricing estimate for the designed pool. By default, it shows the offline list-price tier from `data/pricing/twist_oligo_pools.csv`. With `--twist_quote true`, it also files a live `OLIGO_POOLS_REGULAR` quote against your Twist account and includes the parsed subtotal/shipping/handling/total. See [docs/PRICING_NOTES.md](docs/PRICING_NOTES.md).
+
+## Estimating cost
+
+```
+# Re-price an existing run from oligo_order.csv (offline tier table)
+uv run python ./code/omega.py costs --output_dir output/<run>
+
+# Same, plus a live Twist quote (requires TWIST_JWT_TOKEN, TWIST_END_USER_TOKEN,
+# TWIST_USER_EMAIL env vars and a usable shipping address on the account)
+uv run python ./code/omega.py costs --output_dir output/<run> --twist_quote true
+```
+
+Pricing also runs automatically at the end of every `genes` invocation. Pass `--pricing_enabled false` to skip.
+
 #### Explanation on fidelity calculations
 We report fidelity in 3 ways. The first is `fidelity`, which is the same fidelity calculation reported in Pryor et al. This assumes that all GG sites are being used in a single sequential assembly - it does not fully reflect OMEGA conditions. This metric is used to guide fragment design.
 

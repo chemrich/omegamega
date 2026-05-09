@@ -13,6 +13,7 @@ import numpy as np
 from data_classes import Enzyme, EnzymeTypes, LigationDataOpt, define_ligation_data, PrimerIterator, define_enzyme
 from library_classes import Library
 from junctions import optimize_junctions
+from pricing import cost_summary, write_cost_summary
 from Bio import SeqIO
 
 
@@ -45,7 +46,11 @@ def genes(
         oligo_len: int = 300,
         min_size: int = 40,
         optimization: str = 'simulated_annealing',
-        dev: bool = False
+        dev: bool = False,
+
+        # pricing
+        pricing_enabled: bool = True,
+        twist_quote: bool = False,
 ) -> None:
     """
     Design library for pooled golden gate assembly.
@@ -159,6 +164,20 @@ def genes(
     with open(join(output_dir, 'experiment_details.txt'), 'w') as f:
         f.write(ligation_data.experiment_information())
 
+    if pricing_enabled:
+        try:
+            summary = cost_summary(oligopool, twist_quote=twist_quote)
+            out = write_cost_summary(output_dir, summary)
+            offline = summary['offline_pool_price_usd']
+            print(f"Twist offline list price: ${offline:,.2f} "
+                  f"(tier {summary['offline_tier']}, {summary['offline_length_bin']})")
+            if twist_quote and 'live_pool_subtotal_usd' in summary:
+                print(f"Twist live quote subtotal: ${summary['live_pool_subtotal_usd']:,.2f}  "
+                      f"total: ${summary['live_total_price_usd']:,.2f}")
+            print(f"Cost summary saved to {out}")
+        except Exception as exc:
+            print(f"Pricing skipped: {exc}")
+
     # if dev, save extra data
     if dev:
         # make trajectory save dir
@@ -260,5 +279,30 @@ def junctions(
         for jset, _, seed in optimization_results:
             np.save(join(trajectory_dir, f'set_{jset.name}_seed-{seed}.npy'), np.array(optimized_set.opt_trajectory))
 
+def costs(
+        output_dir: str,
+        twist_quote: bool = False,
+) -> None:
+    """Re-price an existing OMEGA output directory.
+
+    Reads ``oligo_order.csv`` from ``output_dir`` and writes (or overwrites)
+    ``cost_summary.csv``. Useful for repricing past runs without re-running
+    optimization, or for adding ``--twist-quote`` after the fact.
+    """
+    oligo_path = join(output_dir, 'oligo_order.csv')
+    if not exists(oligo_path):
+        raise FileNotFoundError(f"No oligo_order.csv in {output_dir}")
+    oligopool = pd.read_csv(oligo_path)
+    summary = cost_summary(oligopool, twist_quote=twist_quote)
+    out = write_cost_summary(output_dir, summary)
+    offline = summary['offline_pool_price_usd']
+    print(f"Twist offline list price: ${offline:,.2f} "
+          f"(tier {summary['offline_tier']}, {summary['offline_length_bin']})")
+    if twist_quote and 'live_pool_subtotal_usd' in summary:
+        print(f"Twist live quote subtotal: ${summary['live_pool_subtotal_usd']:,.2f}  "
+              f"total: ${summary['live_total_price_usd']:,.2f}")
+    print(f"Cost summary saved to {out}")
+
+
 if __name__ == "__main__":
-    CLI([genes, junctions], as_positional=False)
+    CLI([genes, junctions, costs], as_positional=False)

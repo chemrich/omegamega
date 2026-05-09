@@ -1,6 +1,12 @@
 # Mac OS-specific files
 .DS_Store
 
+# Local-only Twist API probe responses (may contain PII: name, address, phone)
+scripts/_probe_responses/
+
+# Twist OpenAPI spec (third-party docs, available from developers.twistdna.com)
+Twist-API.yaml
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
