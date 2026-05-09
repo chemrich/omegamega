@@ -1,0 +1,33 @@
+input_seqs: data/fastas/fpbase_avgfp_size.fasta
+primers: data/test_primers.csv
+
+output_dir: output/fpbase_avgfp_bench
+
+enzyme: BsaI
+downstream_bbsite: CATT
+upstream_bbsite: CTAA
+ligation_data: T4_18h_37C
+
+njunctions: 50
+nopt_steps: 1000
+nopt_runs: 1
+
+add_primers: true
+pad_oligos: true
+dev: false
+min_size: 40
+njobs: -1
+
+# `'ATA'` (also forbids TAT via reverse-complement) is omitted here.
+# With ~5% per-position match probability it makes random padding
+# generation unsatisfiable for some FPbase gene/primer pairs
+# (e.g. dendra2-m159a runs out of retries at 100k attempts). The
+# bundled test_install and genes_test configs ship with 'ATA' for
+# parity with upstream.
+illegal_dna_sequences:
+  - 'GGGGG'
+
+oligo_len: 300
+opt_seeds: null
+optimization: simulated_annealing
+other_used_sites: null

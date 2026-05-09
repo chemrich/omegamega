@@ -178,3 +178,6 @@ cython_debug/
 
 # OMEGA outputs
 output/
+
+# FPbase API cache
+data/fpbase_raw.json
