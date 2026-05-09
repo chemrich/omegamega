@@ -1,0 +1,10 @@
+{
+  "source": "Twist eCommerce account portal (user-supplied)",
+  "retrieved": "2026-05-09",
+  "currency": "USD",
+  "units": "USD per pool (flat rate by tier x length-bin)",
+  "n_size_tiers": 28,
+  "max_pool_size": 696000,
+  "max_oligo_length_nt": 350,
+  "note": "List prices encoded from the user's Twist account view on 2026-05-09. Account-specific quotes may differ; for production pricing use the --twist-quote live API path."
+}
