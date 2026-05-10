@@ -1,182 +1,206 @@
-# OMEGAMEGA
+# omegamega
 
-> **Note:** This is a fork of [romerolab/omega](https://github.com/romerolab/omega), modified by chemrich starting 2026. Released under the GNU General Public License v3 (see `LICENSE`), the same license as the upstream project.
->
-> **Primer set:** The bundled `data/test_primers.csv` ships 20 primers that Subramanian et al. (2018) flagged as cross-reactive in their Supplementary Table S1, and is missing one of the validated orthogonal primers (`subra_92`). For new library designs, prefer `data/subramanian_orthogonal.csv` (165 validated primers). See [docs/PRIMER_NOTES.md](docs/PRIMER_NOTES.md) for details.
+> Fork of [romerolab/omega](https://github.com/romerolab/omega) — adds cost accounting, validated primers, faster simulated annealing, and uv-based packaging. GPL-3.0-or-later.
 
 [![DOI](https://zenodo.org/badge/964209533.svg)](https://doi.org/10.5281/zenodo.17637682)
 
+OMEGA designs oligopools that assemble into custom gene libraries via Golden Gate, presented in [Freschlin et al. (bioRxiv 2025)](https://www.biorxiv.org/content/10.1101/2025.03.22.644747v1). This fork keeps the design algorithm and assembly protocol intact and layers on the things you need to actually order and execute a library.
 
-This is the code to run the OMEGA program presented in Freschlin et al. bioRxiv (2025). We provide example files and preliminary documentation on OMEGA options. We have not exhaustively tested this code. If you encounter any errors, please open an issue or submit a pull request.
+## What this fork adds
 
-## Install OMEGA
-This fork uses [uv](https://docs.astral.sh/uv/) for package and environment management. Install uv (`brew install uv` or see the uv docs), then sync the environment:
+- **Cost accounting.** Per-run `cost_summary.csv` with Twist oligo-pool list price (offline tier table), IDT primer-pair cost (offline rate card), and an optional live `OLIGO_POOLS_REGULAR` quote against the Twist API. See [docs/PRICING_NOTES.md](docs/PRICING_NOTES.md).
+- **Wet-lab step counts.** Same summary reports the number of PCRs, cleanups, Golden Gate assemblies, and transformations to instantiate the library (3·N + 2 steps for N subpools).
+- **Validated primer set.** [`data/subramanian_orthogonal.csv`](data/subramanian_orthogonal.csv) ships the 165 primers Subramanian et al. flagged as orthogonal in their Supplementary Table S1. Upstream's `data/test_primers.csv` ships all 20 primers they flagged as cross-reactive and is missing one validated primer (`subra_92`); we keep both for parity but recommend the validated set. See [docs/PRIMER_NOTES.md](docs/PRIMER_NOTES.md).
+- **Faster simulated annealing.** `predict_fidelity` was the bottleneck; the inner loop now uses a numpy-indexed view of the ligation matrix cached per DataFrame.
+- **FPbase benchmark corpus.** [`code/build_fpbase_corpus.py`](code/build_fpbase_corpus.py) pulls FPbase, codon-optimizes for E. coli (avoiding BsaI/BsmBI/BbsI sites), and bins by length for size-controlled benchmarking.
+- **uv-based packaging.** `uv sync` instead of conda. Locked in [`uv.lock`](uv.lock).
+
+## Install
 
 ```
 uv sync
 ```
 
-This creates a `.venv/` with the locked dependencies from `pyproject.toml` / `uv.lock`. All commands below use `uv run` to execute inside that environment.
+This creates `.venv/` from `pyproject.toml` + `uv.lock`. All commands below use `uv run` to execute inside that environment. If you prefer Colab, the `omega_google_colab.ipynb` notebook still works.
 
-If you prefer Colab, you can still open the `omega_google_colab.ipynb` notebook and run OMEGA there.
+Verify with the bundled smoke test (~seconds):
 
-#### Verify installation
-We provide a test optimization to verify install. It performs a full library design protocol using very few optimization steps so it is fast.
 ```
 uv run python ./code/omega.py genes --config configs/test_install.yml
 ```
 
-#### Test a full run
-The following includes commands for a simple library design using 7 subpools. Each subpool uses 50 junctions and is optimized 5 times - the best solution is chosen for fragment design. By default, it uses 1 CPU to optimize each subpool. The runtime varies significantly by system. To increase CPU usage, add `--njobs [N cpus]` after the `--config` argument.
-```
-uv run python ./code/omega.py genes --config configs/genes_test.yml
-```
+## Designing a library
 
-## Examples
+Two CLI subcommands do real work, plus one for re-pricing:
 
-#### Optimize your own library
+| command | purpose |
+|---|---|
+| `genes` | Full library design from a FASTA of codon-optimized genes. |
+| `junctions` | Optimize a standalone GG junction set without library sequences (used for Fig. 2 of the paper). |
+| `costs` | Re-price an existing output dir. |
 
-We provide a template config you can use to optimize your own library. Please see `configs/template.yml` for default values. You can optimize your sequences by filling in the parameters below. We provide the default test primers as the primer argument. These are highly specific primers designed by Subramanian et al. and are what we use to amplify subpools.
-
-For 50 junctions, running OMEGA for 1000 steps and doing 5-10 independent optimizations for each subpool is sufficient. However, increasing `nopt_steps` to 3k and `nopt_runs` will improve fidelity. Change these parameters to determine what's best for your specific use case. More complex assemblies may require more optimizations steps or runs.
+The flow: copy [`configs/template.yml`](configs/template.yml), fill in your inputs, and run `genes`. Any config key can be overridden on the command line as `--<key> <value>`.
 
 ```
 uv run python ./code/omega.py genes --config configs/template.yml \
-    --input_seqs [.fasta file] \
-    --njunctions [number of GG site junctions per subpool] \
-    --upstream_bbsite [upstream backbone GG site] \
-    --downstream_bbsite [downstream backbone GG site] \
-    --primers ./data/test_primers.csv \
-    --nopt_steps 1000 \
-    --nopt_runs 5
+    --input_seqs path/to/library.fasta \
+    --njunctions 50 \
+    --upstream_bbsite AATG --downstream_bbsite TTAG \
+    --primers ./data/subramanian_orthogonal.csv \
+    --nopt_steps 1000 --nopt_runs 5 --njobs 8
 ```
 
-#### Modify arguments with command line
-OMEGA uses a config to set various runtime parameters. Any of these can be passed as command line arguments that override the default config values. For example, the below code updates the number of GG sites per subpool from 50 to 70 without modifying the config. For a full explanation of OMEGA parameters, please see Options.
-```
-uv run python ./code/omega.py --config configs/test_install.yml \
-    --njunctions 70
-```
+For 50 junctions, 5–10 independent optimizations of 1,000 steps per subpool is usually sufficient. Bumping `nopt_runs` beats bumping `nopt_steps` for marginal fidelity gains. Longer constructs need more fragments per gene, which means fewer genes per pool: `genes_per_pool ≈ (njunctions − 2) / (nfrags − 1)`.
 
-## Output files
-
-OMEGA writes its output files into the directory indicated by `--output_dir`. See below for a brief explanation of each.
-
-`oligo_order.csv` includes just oligo sequences for designed library. These may be submitted directly to order an oligopool. `optimization_results.csv` is the most comprehensive output file. For each gene, it includes the gene name, submitted sequence, oligo sequence, forward and reverse primers, and fidelity. 
-
-`pool_stats.csv` is a pool-level view of the optimization results. It provides fidelities, number of genes per pool, number of sites used in each pool, random seed used to design the pool, Type IIS restriction enzyme, and primer information for each pool.
-
-`cost_summary.csv` is a single-row pricing + wet-lab summary for the designed pool. By default it shows Twist's offline list-price tier from `data/pricing/twist_oligo_pools.csv`, IDT primer-pair costs from `data/pricing/idt_primers.csv` (one fwd + one rev per subpool), and the count of wet-lab steps needed to instantiate the library (PCRs, cleanups, GG assemblies, transformations, total = 3·N + 2 for N subpools). `pool_stats.csv` gains per-pool primer cost columns. With `--twist_quote true`, OMEGA also files a live `OLIGO_POOLS_REGULAR` quote against your Twist account and adds the parsed subtotal/shipping/handling/total. See [docs/PRICING_NOTES.md](docs/PRICING_NOTES.md).
-
-## Estimating cost
+A small full-library run (7 subpools, 50 junctions, 5 opt seeds):
 
 ```
-# Re-price an existing run from oligo_order.csv (offline tier table)
+uv run python ./code/omega.py genes --config configs/genes_test.yml --njobs 8
+```
+
+## Cost + wet-lab summary
+
+`pricing_enabled` is on by default; the `genes` flow finishes with something like:
+
+```
+Twist offline list price: $6,181.00 (tier 5, len_251_300)
+IDT primer pairs: $528.00 (55 pools at $9.60/pool)
+Wet-lab steps: 167 total (55 PCRs + 55 PCR cleanups + 55 GG assemblies + 1 final cleanup + 1 transformation)
+Cost summary saved to output/<run>/cost_summary.csv
+```
+
+Re-price an existing run without re-optimizing:
+
+```
 uv run python ./code/omega.py costs --output_dir output/<run>
+```
 
-# Same, plus a live Twist quote (requires TWIST_JWT_TOKEN, TWIST_END_USER_TOKEN,
-# TWIST_USER_EMAIL env vars and a usable shipping address on the account)
+Add a live Twist quote (requires `TWIST_JWT_TOKEN`, `TWIST_END_USER_TOKEN`, `TWIST_USER_EMAIL` env vars and a usable shipping address on your account):
+
+```
 uv run python ./code/omega.py costs --output_dir output/<run> --twist_quote true
 ```
 
-Pricing also runs automatically at the end of every `genes` invocation. Pass `--pricing_enabled false` to skip.
+The live quote was spot-validated against two production quotes on 2026-05-09 — Tier 1 (10 oligos) and Tier 5 (3,512 oligos) — both subtotals matched the offline table exactly.
 
-#### Explanation on fidelity calculations
-We report fidelity in 3 ways. The first is `fidelity`, which is the same fidelity calculation reported in Pryor et al. This assumes that all GG sites are being used in a single sequential assembly - it does not fully reflect OMEGA conditions. This metric is used to guide fragment design.
+For pricing schema, table sources, and the OLIGO_POOLS_REGULAR API specifics, see [docs/PRICING_NOTES.md](docs/PRICING_NOTES.md).
 
-We also calculate the fidelity for each individual gene and report the lowest fidelity for each subpool as `min_gene_fidelity`. This is the more relevant metric for OMEGA. `min_gene_fidelity` takes into account the complex assembly background while limiting the fidelity calculation to the relevant gene length. `min_site_fidelity` reports the least orthogonal site included in the optimized sites.
+## Output files
 
+Every `genes` run writes to the directory passed as `--output_dir`:
 
-## A note on assembly conditions
+| file | contents |
+|---|---|
+| `oligo_order.csv` | Just `name,sequence` for the designed oligos. Submit directly to your oligo vendor. |
+| `optimization_results.csv` | Per-gene record: name, submitted DNA, fragment oligos, fwd + rev primers, fidelity. |
+| `pool_stats.csv` | Per-subpool record: fidelities, gene/site counts, optimization seed, enzyme, primer pair, primer cost. |
+| `cost_summary.csv` | One-row library-level summary: oligo counts, Twist tier price, IDT primer total, wet-lab step counts, optional live-quote columns. |
+| `experiment_details.txt` | Plain-text dump of the ligation-data experimental conditions used for fidelity scoring. |
 
-In our paper, we use the fidelity data for an 18 hr digest at 37C using T4 DNA ligase because these conditions generated the highest fidelity GG sites. We include data for other enzymes/assembly conditions as provided by Potapov et al. and Pryor et al., but we *strongly* recommend using BsaI and the T4_18h_37C ligation data. These are the default for all configs.
+Generating an IDT bulk-quote upload from your primer file:
+
+```
+uv run python scripts/generate_idt_quote_request.py \
+    --input data/subramanian_orthogonal.csv \
+    --output-prefix data/pricing/idt_quote_request_subramanian_orthogonal
+```
+
+Writes one `<prefix>_plate<N>.xls` per 96-well plate in IDT's plate-upload format.
+
+## Fidelity scoring
+
+OMEGA reports three fidelity metrics per pool:
+
+- **`fidelity`** — the Pryor et al. ligation-fidelity calculation across all GG sites in the pool. Assumes a single sequential assembly; doesn't reflect OMEGA's combinatorial conditions. Used as the optimization objective.
+- **`min_gene_fidelity`** — the lowest per-gene fidelity in the pool, accounting for the complex assembly background and the relevant gene length. Most relevant metric for OMEGA-style libraries.
+- **`min_site_fidelity`** — the least orthogonal site selected.
+
+Default ligation data is `T4_18h_37C` (Potapov et al.); the bundled BsaI cycling data and other Pryor et al. datasets are also available via `--ligation_data`. For the OMEGA paper conditions, **stick with BsaI + T4_18h_37C** unless you have a reason to deviate — it generated the highest-fidelity sites in the original characterization.
 
 ## Assembly protocol
 
-1. Dilute oligopool to 1 ng/µL using nuclease free water.
-2. Set up PCR reactions for each subpool following Table 1.
-3. Amplify subpools with the protocol in Table 2. IMPORTANT NOTE: the annealing temperature for step 3 is optimized for the Subramanian et al. primers using KAPA HiFi HotStart ReadyMix. We recommend these primers, but remember to adjust the annealing temperature if using different primers and/or polymerase.
-4. Clean up each PCR reaction individually. We used column cleanup.
-5. Set up Golden Gate assemblies for each subpool according to Table 3.
-6. Digest fragments for 2 hrs. at 37 ºC.
-7. Add 1,000 Units of T4 Ligase (NEB, [M0202T](https://www.neb.com/en-us/products/m0202-t4-dna-ligase?srsltid=AfmBOoqSsfxBZGP0h1DDVgG9X7KYoqLw37nNvaB6QNiYlLoHwVRUQ0yN)) to each reaction.
-	- We recommend the higher concentration since this will not significantly change the assembly reaction volume.
-8. Incubate reaction for 18 hours at 37 ºC
-9. Perform a final incubation at 65 ºC for 15 mins to heat inactivate T4 ligase.
-10. Combine all Golden Gate assemblies into a single tube and gently mix. Perform a final clean-up with full library.
-11. Library is ready to transform into cells.
+Adapted from [Twist's oligopool amplification guidelines](https://www.twistbioscience.com/sites/default/files/resources/2019-09/Guidelines_OligoPools_%20Amplification_29Aug19_Rev5.1.pdf). The wet-lab counts in `cost_summary.csv` enumerate steps 2, 4, 5, 10, and 11.
 
-Note: some applications may require PCR on the assembled library. If so, it's recommended that you do an additional digest after this step since any remaining empty vectors will likely be enriched in the PCR product since they are significantly smaller than complete assemblies.
-  
-<br/>
+1. Dilute oligopool to 1 ng/µL with nuclease-free water.
+2. Set up one PCR reaction per subpool (Table 1).
+3. Amplify with the protocol in Table 2. **Note:** the annealing temperature in step 3 is optimized for Subramanian primers + KAPA HiFi HotStart ReadyMix; adjust if you're using different primers or polymerase.
+4. Column cleanup of each PCR reaction individually.
+5. Set up Golden Gate assembly per subpool (Table 3).
+6. Digest 2 hr at 37 °C.
+7. Add 1,000 U T4 Ligase ([NEB M0202T](https://www.neb.com/en-us/products/m0202-t4-dna-ligase)) — use the higher-concentration stock to keep volumes constant.
+8. Ligate 18 hr at 37 °C.
+9. Heat-inactivate T4 ligase 15 min at 65 °C.
+10. Combine all subpool assemblies into a single tube; final column cleanup of the pooled library.
+11. Transform.
 
-**Table 1. PCR setup.** Adapted from [Twist's recommended oligopool amplification guidelines](https://www.twistbioscience.com/sites/default/files/resources/2019-09/Guidelines_OligoPools_%20Amplification_29Aug19_Rev5.1.pdf).
-| Component | Final concentration | Per 25 µL reaction|
+If a downstream step needs PCR on the assembled library, run another digest afterward — empty vectors are smaller than complete assemblies and will be enriched in the PCR product.
+
+**Table 1 — PCR setup** (per 25 µL reaction)
+
+| Component | Final concentration | Volume |
 |--|--|--|
 | Oligopool (1 ng/µL) | 0.04 ng/µL | 1 µL |
 | Forward primer (10 µM) | 0.3 µM | 0.75 µL |
 | Reverse primer (10 µM) | 0.3 µM | 0.75 µL |
-2x KAPA HiFi HotStart ReadyMix | 1x | 12.5 µL |
-Nuclease free water | - | Bring to 25 µL |
+| 2× KAPA HiFi HotStart ReadyMix | 1× | 12.5 µL |
+| Nuclease-free water | — | to 25 µL |
 
-<br/>
+**Table 2 — PCR protocol**
 
-**Table 2. PCR protocol.** Adapted from [Twists Oligopool amplification guidelines](https://www.twistbioscience.com/sites/default/files/resources/2019-09/Guidelines_OligoPools_%20Amplification_29Aug19_Rev5.1.pdf).
-| PCR Step | Temperature | Time|
+| Step | Temperature | Time |
 |--|--|--|
-| 1: Initial denaturation | 95 ºC | 3 min. |
-| 2: Denaturation | 98 ºC | 20 sec. |
-| 3: Annealing | 61 ºC | 15 sec. |
-| 4: Extension | 72 ºC | 15 sec. |
-| 5: Repeat steps 2-4 for 35 cycles. | - | - |
-| 6: Final extension | 72 ºC | 1 min. |
+| Initial denaturation | 95 °C | 3 min |
+| Denaturation | 98 °C | 20 sec |
+| Annealing | 61 °C | 15 sec |
+| Extension | 72 °C | 15 sec |
+| Repeat steps 2–4 | — | 35 cycles |
+| Final extension | 72 °C | 1 min |
 
+**Table 3 — Golden Gate assembly** (per 20 µL reaction; T4 ligase added after a 2-hr digest)
 
-
-<br/>
-
-**Table 3. Golden Gate setup.** Reagents used to assemble each subpool. Assemblies use a 20 µL reaction. T4 Ligase is added after a 2 hr. digest.
-| Component | Per 20 µL reaction|
+| Component | Amount |
 |--|--|
-| PCR product | 18:1 insert to vector molar ratio |
+| PCR product | 18:1 insert:vector molar ratio |
 | Destination vector | 75 ng |
 | BsaI (15 U/µL) | 15 U |
-T4 Ligase buffer (10x) | 2 µL |
-Nuclease free water | Bring to 20 µL |
+| T4 Ligase buffer (10×) | 2 µL |
+| Nuclease-free water | to 20 µL |
 
+## Options reference
 
-## Options
+Set in a YAML config or override on the command line.
 
-All default options are set in `configs/genes_test.yml` and `configs/template.yml`. Each option can be included as command line arguments, which will override the config values. Please see below for a list of all options with a brief explanation.
+**Required**
 
-OMEGA is still being refined - some arguments were created during development that will be removed or modified in the future. Those values omitted here but still included in the config files since the program requires them.
+- `input_seqs` — FASTA of codon-optimized library sequences. Example in `data/fastas/`.
+- `primers` — paired-primer CSV (`fwd_name,fwd_sequence,rev_name,rev_sequence`). Use `data/subramanian_orthogonal.csv` for new designs.
+- `upstream_bbsite`, `downstream_bbsite` — vector ligation sites (e.g. `AATG`, `TTAG`).
+- `njunctions` — number of GG sites per subpool, *including* the 2 backbone sites.
 
-- `input_seqs`: an input fasta file with codon-optimized sequences. An example file is included in `data/fastas`.
-- `primers`: file containing forward and reverse primer sequences. Please see `data/test_primers.csv` for example file format. All primer sequences should be written in 5' to 3' direction. We highly recommend using the Subramanian et al. primers since these were designed to amplify DNA from complex backgrounds with high-fidelity.
-- `output_dir`: name of directory to write output files to. If the directory does not exist, OMEGA will make one.
-- `enzyme`: Type IIS restriction enzyme used to assemble library. Accepted options are [BsaI, BsmBI, BbsI].
-- `upstream_bbsite`: upstream vector ligation site. (ex. AATG)
-- `downstream_bbsite`: downstream vector ligation site. (ex. TTAG)
-- `ligation_data`: Ligation frequency data from Potapov et al. to use in fidelity calculation. All experiments in OMEGA paper used T4_18h_37C, which use T4 ligase and an 18 hour incubation at 37C. Accepted options are [T4_01h_25C, T4_18h_25C, T4_01h_37C, T4_18h_37C] from Potapov et al. and [BsaI_cycling, BbsI_cycling, BsmBI_cycling, Esp3I_cycling] from Pryor et al.
-- `njunctions`: number of Golden Gate sites used to assemble each subpool. This number includes backbone vector sites, so for example if you specify njunctions=50, 48 GG sites are used to design fragments.
-- `nopt_steps`: number of optimization steps used to design GG sites. The default is 3000.
-- `nopt_runs`: the number of times OMEGA will design GG sites for each subpool. Each run uses a separate random seed and the run with the best fidelity is taken as the solution. Increasing run number is recommended for improving fidelity more than `nopt_steps`.
-- `add_primers`: whether primers should be added to oligopool sequences in `oligo_order.csv`. Default is True.
-- `pad_oligos`: whether random DNA should be added between the GG site and primer binding site. DNA does not include Type IIS restriction enzyme indicated by `enzyme`. Future updates will add support to exclude any DNA sequence to support downstream cloning applications that may use other kinds of restriction enzymes.
-- `illegal_dna_sequences`: Users may wish to apply their sequences for downstream cloning operations that may not be compatible with certain DNA sequences. This parameter allows users to list sequences that should not be included in the random padding that's generated when padding oligos. For example, a step-wise cloning procedure that uses BsaI to assemble the library followed by BsmBI for an additional cloning step may want to exclude BsmBI sequences from the random padding.
-- `njobs`: number of CPUs to run jobs in parallel when optimizing a single subpool. OMEGA uses `joblib` to parallelize runs defined by `nopt_runs` or `opt_seeds`. The default value is 1, but it's recommended to use more than that when optimizing pools. It significantly speeds up OMEGA.
-- `oligo_len`: max oligo length.
-- `opt_seeds`: Instead of indicating `nopt_runs`, instead provide a list of random seeds to use to initialize fragment design. This argument is partly an artifact from development, but can be useful for reproducibility. The number of seeds provided indicates the number of optimizations run for each pool. `opt_seeds` is mutually exclusive with `nopt_runs`. `nopt_runs` is sufficient in nearly all cases.
-- `pricing_enabled`: whether to write `cost_summary.csv` and add per-pool primer-cost columns to `pool_stats.csv` after `genes` runs. Default `true`. See [docs/PRICING_NOTES.md](docs/PRICING_NOTES.md).
-- `twist_quote`: in addition to the offline tier-table lookup, file a live `OLIGO_POOLS_REGULAR` quote against your Twist account and merge the parsed numbers into `cost_summary.csv`. Default `false`. Requires `TWIST_JWT_TOKEN`, `TWIST_END_USER_TOKEN`, `TWIST_USER_EMAIL` env vars and a usable shipping address on the account.
+**Optional**
 
+- `output_dir` (default `output`) — where to write outputs; created if missing.
+- `enzyme` (default `BsaI`) — one of `BsaI`, `BsmBI`, `BbsI`.
+- `ligation_data` (default `T4_18h_37C`) — `T4_{01h,18h}_{25C,37C}` (Potapov et al.) or `{BsaI,BbsI,BsmBI,Esp3I}_cycling` (Pryor et al.).
+- `nopt_steps` (default 1000), `nopt_runs` (default 5) — opt budget per subpool. `opt_seeds` (mutually exclusive with `nopt_runs`) sets explicit seeds for reproducibility.
+- `njobs` (default 1) — parallel optimization runs via joblib. Increase for faster pool optimization.
+- `oligo_len` (default 300) — max oligo length.
+- `add_primers` (default `true`), `pad_oligos` (default `true`) — controls whether primers are appended and whether random DNA pads oligos to uniform length.
+- `illegal_dna_sequences` — sequences excluded from random padding (with reverse-complement awareness, so `'ATA'` also forbids `'TAT'`).
+- `other_used_sites` — extra GG sites in your assembly that aren't backbone-vector sites.
+- `pricing_enabled` (default `true`) — write `cost_summary.csv` and per-pool primer costs in `pool_stats.csv`. Set `false` to skip pricing entirely.
+- `twist_quote` (default `false`) — also file a live Twist API quote and merge the parsed numbers into `cost_summary.csv`. Requires `TWIST_*` env vars (see [docs/PRICING_NOTES.md](docs/PRICING_NOTES.md)).
+
+## Citing
+
+If you use this code, please cite the OMEGA paper:
+
+> Freschlin, C. R., Yang, K. K., Romero, P. A. *Scalable and cost-efficient custom gene library assembly from oligopools.* bioRxiv (2025). [doi:10.1101/2025.03.22.644747](https://doi.org/10.1101/2025.03.22.644747)
+
+This fork has its own Zenodo DOI (above) for fork-specific changes (cost accounting, validated primers, refactored SA, uv packaging).
 
 ## References
 
-Freschlin, C. R., Yang, K. K., Romero, P. A. [Scalable and cost-efficient custom gene library assembly from oligopools](https://www.biorxiv.org/content/10.1101/2025.03.22.644747v1). bioRxiv (2025)
-
-Pryor, J. M. et al. [Enabling one-pot Golden Gate assemblies of unprecedented complexity using data-optimized assembly design](https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0238592). PLoS One 15, e0238592 (2020)
-
-Subramanian, S. K., Russ, W. P. & Ranganathan, R. [A set of experimentally validated, mutually orthogonal primers for combinatorially specifying genetic components](https://academic.oup.com/synbio/article/3/1/ysx008/4817474). Synth Biol 3, (2018).
-
-Potapov, V. et al. [Comprehensive profiling of four base overhang ligation fidelity by T4 DNA ligase and application to DNA assembly](https://pubs.acs.org/doi/10.1021/acssynbio.8b00333). ACS Synth Biol 7, 2665–2674 (2018)
+- Pryor, J. M. et al. [Enabling one-pot Golden Gate assemblies of unprecedented complexity using data-optimized assembly design.](https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0238592) *PLoS One* 15, e0238592 (2020).
+- Subramanian, S. K., Russ, W. P. & Ranganathan, R. [A set of experimentally validated, mutually orthogonal primers for combinatorially specifying genetic components.](https://academic.oup.com/synbio/article/3/1/ysx008/4817474) *Synth. Biol.* 3, ysx008 (2018).
+- Potapov, V. et al. [Comprehensive profiling of four base overhang ligation fidelity by T4 DNA ligase and application to DNA assembly.](https://pubs.acs.org/doi/10.1021/acssynbio.8b00333) *ACS Synth. Biol.* 7, 2665–2674 (2018).
