@@ -11,6 +11,7 @@ OMEGA designs oligopools that assemble into custom gene libraries via Golden Gat
 - **Cost accounting.** Per-run `cost_summary.csv` with Twist oligo-pool list price (offline tier table), IDT primer-pair cost (offline rate card), and an optional live `OLIGO_POOLS_REGULAR` quote against the Twist API. See [docs/PRICING_NOTES.md](docs/PRICING_NOTES.md).
 - **Wet-lab step counts.** Same summary reports the number of PCRs, SPRI cleanups, PicoGreen quants, Golden Gate assemblies, and transformations to instantiate the library (4·N + 2 steps for N subpools).
 - **Validated primer set.** [`data/subramanian_orthogonal.csv`](data/subramanian_orthogonal.csv) ships the 165 primers Subramanian et al. flagged as orthogonal in their Supplementary Table S1. Upstream's `data/test_primers.csv` ships all 20 primers they flagged as cross-reactive and is missing one validated primer (`subra_92`); we keep both for parity but recommend the validated set. See [docs/PRIMER_NOTES.md](docs/PRIMER_NOTES.md).
+- **Length-stratified subpooling and cost advisor.** Genes are grouped by their required fragment count before pool assignment, so short genes land in shorter-oligo (cheaper) pools rather than being padded to match the longest gene in the library. At the start of each interactive `genes` run, OMEGA checks whether increasing fragmentation for any length group would drop the library into a cheaper Twist tier and prompts for confirmation. After the run, an advisory is printed if you end up just a few oligos above a tier boundary.
 - **Faster simulated annealing.** `predict_fidelity` was the bottleneck; the inner loop now uses a numpy-indexed view of the ligation matrix cached per DataFrame.
 - **FPbase benchmark corpus.** [`code/build_fpbase_corpus.py`](code/build_fpbase_corpus.py) pulls FPbase, codon-optimizes for E. coli (avoiding BsaI/BsmBI/BbsI sites), and bins by length for size-controlled benchmarking.
 - **uv-based packaging.** `uv sync` instead of conda. Locked in [`uv.lock`](uv.lock).
@@ -60,7 +61,17 @@ uv run python ./code/omega.py genes --config configs/genes_test.yml --njobs 8
 
 ## Cost + wet-lab summary
 
-`pricing_enabled` is on by default; the `genes` flow finishes with something like:
+`pricing_enabled` is on by default. Before optimization, if a cheaper fragmentation plan exists (e.g. splitting one length group more finely to drop into a lower Twist tier), OMEGA prints a prompt:
+
+```
+--- OMEGA Cost Optimization ---
+Standard fragmentation cost: $9,120.00
+A cheaper plan exists: $7,727.00 (Save $1,393.00!)
+This plan increases fragmentation for some groups to drop into a cheaper Twist length tier.
+Would you like to use the cost-optimized plan? [Y/n]:
+```
+
+This prompt only appears in interactive sessions (`stdin` is a TTY); it is skipped in batch/CI contexts. The `genes` flow then finishes with something like:
 
 ```
 Twist offline list price: $7,727.00 (tier 5, len_301_350)

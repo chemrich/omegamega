@@ -301,9 +301,11 @@ class Library:
         for i in range(len(current_plan)):
             test_plan = [dict(g) for g in current_plan]
             test_plan[i]['nfrags'] += 1
-            # recalculate pools for this group
+            # recalculate oligo_len, pool count, and genes-per-pool for the new nfrags
             nfrags = test_plan[i]['nfrags']
             genes = test_plan[i]['genes']
+            group_max_gene = max(len(gene[1]) for gene in genes)
+            test_plan[i]['oligo_len'] = min(ceil(group_max_gene / nfrags) + 78, self.oligo_len)
             ngenes_per_pool = (self.njunctions - 2 - len(self.other_used_sites)) // (nfrags - 1)
             if ngenes_per_pool <= 0: ngenes_per_pool = 1
             test_plan[i]['ngenes_per_pool'] = ngenes_per_pool
@@ -488,7 +490,7 @@ class Pool:
             self.ligation_data
         )
         self.min_site_fidelity = predict_minimum_site(
-            [np.array([df.ggsite.to_numpy() for df in self.optimized_sites]).flatten()] + [[self.upstream_bbsite], [self.downstream_bbsite]],
+            [np.array([df.ggsite.to_numpy() for df in self.optimized_sites]).flatten()] + [self.upstream_bbsite, self.downstream_bbsite],
             self.ligation_data
         )
 
@@ -527,7 +529,7 @@ class Pool:
             self.ligation_data
         )
         min_site_fidelity = predict_minimum_site(
-            [np.array([df.ggsite.to_numpy() for df in self.optimized_sites]).flatten()] + [[self.upstream_bbsite], [self.downstream_bbsite]],
+            [np.array([df.ggsite.to_numpy() for df in self.optimized_sites]).flatten()] + [self.upstream_bbsite, self.downstream_bbsite],
             self.ligation_data
         )
 
@@ -721,7 +723,7 @@ class SAPool:
             self.ligation_data
         )
         self.min_site_fidelity = predict_minimum_site(
-            list(chain(*[df.ggsite.tolist() for df in list(self.optimized_sites.values())])) + [[self.upstream_bbsite], [self.downstream_bbsite]],
+            list(chain(*[df.ggsite.tolist() for df in list(self.optimized_sites.values())])) + [self.upstream_bbsite, self.downstream_bbsite],
             self.ligation_data
         )
 
@@ -980,11 +982,10 @@ class Gene:
         left_size = extra_space // 2
         right_size = extra_space - left_size
 
-        # Junction overlap must be exactly len(enzyme)-1 to avoid matching the enzyme site
-        # that IS at the start/end of the oligo, while still catching it if it spans the junction.
-        overlap = len(self.enzyme.seq) - 1
-
         illegal_elements = tuple([self.enzyme.seq] + list(self.illegal_dna_sequences))
+        # Overlap window must be wide enough for the longest illegal element so that any
+        # element straddling the padding/primer or padding/oligo boundary is caught.
+        overlap = max(len(e) for e in illegal_elements) - 1
         pattern = _compile_dna_pattern(illegal_elements, reverse_complement=True)
 
         def find_valid_padding(size, prefix, suffix, batch_size=1000):
