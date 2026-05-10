@@ -26,6 +26,9 @@ import pandas as pd
 DEFAULT_TWIST_TABLE = (
     Path(__file__).resolve().parent.parent / "data" / "pricing" / "twist_oligo_pools.csv"
 )
+DEFAULT_IDT_PRIMER_TABLE = (
+    Path(__file__).resolve().parent.parent / "data" / "pricing" / "idt_primers.csv"
+)
 
 
 _LENGTH_BINS: list[tuple[str, int, int]] = [
@@ -304,17 +307,115 @@ def live_oligo_pool_quote(
     raise TimeoutError(f"Quote {quote_id} did not reach SUCCESS in {quote_timeout:.0f}s")
 
 
+@dataclass(frozen=True)
+class IDTPrimerQuote:
+    """Result of an offline IDT primer-pricing lookup."""
+    length_nt: int
+    scale: str
+    purification: str
+    format: str
+    price_usd: float
+    per_base_usd: float
+    plate_setup_usd: float
+    source: str
+
+
+class IDTPrimerPricing:
+    """Per-primer pricing for IDT, encoded as a tiered per-base + setup table.
+
+    The bundled table at ``data/pricing/idt_primers.csv`` encodes 25 nmole DNA
+    Plate Oligo / Standard Desalting at $0.24/bp with no per-plate setup
+    fee, anchored to a real IDT cart snapshot for the Subramanian primer set.
+    Other scales/purifications can be added as additional rows.
+    """
+
+    def __init__(self, table: pd.DataFrame, source_path: Optional[Path] = None):
+        self.table = table
+        self.source_path = source_path
+
+    @classmethod
+    def from_csv(cls, path: str | Path) -> "IDTPrimerPricing":
+        path = Path(path)
+        cached = _TABLE_CACHE.get(path)
+        if cached is None:
+            cached = pd.read_csv(path)
+            _TABLE_CACHE[path] = cached
+        return cls(cached, source_path=path)
+
+    def quote_primer(
+        self,
+        length_nt: int,
+        *,
+        scale: str = "25nmole",
+        purification: str = "STD",
+        format: str = "plate",
+    ) -> IDTPrimerQuote:
+        if length_nt < 1:
+            raise ValueError(f"length_nt must be >= 1, got {length_nt}")
+        rows = self.table[
+            (self.table.scale == scale)
+            & (self.table.purification == purification)
+            & (self.table.format == format)
+            & (self.table.length_min <= length_nt)
+            & (self.table.length_max >= length_nt)
+        ]
+        if rows.empty:
+            raise ValueError(
+                f"No IDT pricing row for length={length_nt} scale={scale!r} "
+                f"purification={purification!r} format={format!r}. "
+                f"Add a row to {self.source_path}."
+            )
+        row = rows.iloc[0]
+        per_base = float(row.price_per_base_usd)
+        return IDTPrimerQuote(
+            length_nt=int(length_nt),
+            scale=scale,
+            purification=purification,
+            format=format,
+            price_usd=per_base * length_nt,
+            per_base_usd=per_base,
+            plate_setup_usd=float(row.plate_setup_usd),
+            source=str(row.source),
+        )
+
+    def quote_pool_pair(
+        self,
+        fwd_len: int,
+        rev_len: int,
+        **kwargs,
+    ) -> dict:
+        """Cost of one (forward, reverse) primer pair for a single subpool."""
+        f = self.quote_primer(fwd_len, **kwargs)
+        r = self.quote_primer(rev_len, **kwargs)
+        return {
+            "fwd_primer_cost_usd": f.price_usd,
+            "rev_primer_cost_usd": r.price_usd,
+            "pair_cost_usd": f.price_usd + r.price_usd,
+            "per_base_usd": f.per_base_usd,
+            "scale": f.scale,
+            "purification": f.purification,
+            "format": f.format,
+            "source": f.source,
+        }
+
+
 def cost_summary(
     oligo_order_df: pd.DataFrame,
     *,
     table_path: Path = DEFAULT_TWIST_TABLE,
     twist_quote: bool = False,
     twist_kwargs: Optional[dict] = None,
+    pool_stats_df: Optional[pd.DataFrame] = None,
+    idt_table_path: Path = DEFAULT_IDT_PRIMER_TABLE,
+    idt_scale: str = "25nmole",
+    idt_purification: str = "STD",
+    idt_format: str = "plate",
 ) -> dict:
     """Build a single-row cost summary for an OMEGA oligo_order DataFrame.
 
-    Always includes offline tier-table pricing. If ``twist_quote=True``, also
-    submits a live OLIGO_POOLS_REGULAR quote and merges the parsed numbers.
+    Always includes Twist offline tier-table pricing. With ``twist_quote=True``
+    also submits a live OLIGO_POOLS_REGULAR quote. With ``pool_stats_df``
+    provided, also computes IDT primer costs from the pool's primer pairs.
     """
     n_oligos = int(len(oligo_order_df))
     max_len = int(oligo_order_df.sequence.str.len().max())
@@ -350,6 +451,28 @@ def cost_summary(
             ),
         })
 
+    if pool_stats_df is not None and len(pool_stats_df) > 0:
+        idt = IDTPrimerPricing.from_csv(idt_table_path)
+        per_pool: list[float] = []
+        for _, row in pool_stats_df.iterrows():
+            pair = idt.quote_pool_pair(
+                len(row["pfwd_sequence"]),
+                len(row["prev_sequence"]),
+                scale=idt_scale,
+                purification=idt_purification,
+                format=idt_format,
+            )
+            per_pool.append(pair["pair_cost_usd"])
+        summary.update({
+            "n_pools": int(len(pool_stats_df)),
+            "n_primer_pairs": int(len(pool_stats_df)),
+            "primers_per_pool_avg_usd": sum(per_pool) / len(per_pool),
+            "primers_total_usd": float(sum(per_pool)),
+            "idt_scale": idt_scale,
+            "idt_purification": idt_purification,
+            "idt_format": idt_format,
+        })
+
     return summary
 
 
@@ -357,4 +480,31 @@ def write_cost_summary(output_dir: str | Path, summary: dict) -> Path:
     """Write the dict from :func:`cost_summary` to ``cost_summary.csv``."""
     out = Path(output_dir) / "cost_summary.csv"
     pd.DataFrame([summary]).to_csv(out, index=False)
+    return out
+
+
+def annotate_pool_stats_with_primer_cost(
+    pool_stats_df: pd.DataFrame,
+    *,
+    idt_table_path: Path = DEFAULT_IDT_PRIMER_TABLE,
+    scale: str = "25nmole",
+    purification: str = "STD",
+    format: str = "plate",
+) -> pd.DataFrame:
+    """Return ``pool_stats_df`` with IDT per-pool primer cost columns added."""
+    idt = IDTPrimerPricing.from_csv(idt_table_path)
+    out = pool_stats_df.copy()
+    fwd, rev, pair = [], [], []
+    for _, row in out.iterrows():
+        q = idt.quote_pool_pair(
+            len(row["pfwd_sequence"]),
+            len(row["prev_sequence"]),
+            scale=scale, purification=purification, format=format,
+        )
+        fwd.append(q["fwd_primer_cost_usd"])
+        rev.append(q["rev_primer_cost_usd"])
+        pair.append(q["pair_cost_usd"])
+    out["fwd_primer_cost_usd"] = fwd
+    out["rev_primer_cost_usd"] = rev
+    out["primer_pair_cost_usd"] = pair
     return out

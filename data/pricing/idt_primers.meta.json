@@ -1,0 +1,23 @@
+{
+  "source": "IDT Cart Snapshot 36128990 (account-level quote)",
+  "retrieved": "2026-05-10",
+  "currency": "USD",
+  "primer_set": "data/subramanian_orthogonal.csv (165 primers, 20 nt each)",
+  "configuration": {
+    "scale": "25 nmole DNA Plate Oligo",
+    "purification": "Standard Desalting",
+    "plate_type": "1.2 mL Deep 96P",
+    "yield": "Full"
+  },
+  "anchor_quote": {
+    "plate1_primers": 96,
+    "plate1_price_usd": 460.80,
+    "plate2_primers": 69,
+    "plate2_price_usd": 331.20,
+    "subtotal_usd": 792.00,
+    "implied_per_primer_at_20nt_usd": 4.80,
+    "implied_per_base_usd": 0.24,
+    "implied_per_plate_setup_usd": 0.00
+  },
+  "note": "Linear per-base rate extrapolated from a single 20-nt anchor; tube-format pricing and longer/shorter oligos may differ. Shipping and tax are TBD per the snapshot."
+}

@@ -66,7 +66,7 @@ OMEGA includes 3 files as output. These are written to the output directly indic
 
 `pool_stats.csv` is a pool-level view of the optimization results. It provides fidelities, number of genes per pool, number of sites used in each pool, random seed used to design the pool, Type IIS restriction enzyme, and primer information for each pool.
 
-`cost_summary.csv` is a single-row pricing estimate for the designed pool. By default, it shows the offline list-price tier from `data/pricing/twist_oligo_pools.csv`. With `--twist_quote true`, it also files a live `OLIGO_POOLS_REGULAR` quote against your Twist account and includes the parsed subtotal/shipping/handling/total. See [docs/PRICING_NOTES.md](docs/PRICING_NOTES.md).
+`cost_summary.csv` is a single-row pricing estimate for the designed pool. By default it shows Twist's offline list-price tier from `data/pricing/twist_oligo_pools.csv` plus IDT primer-pair costs from `data/pricing/idt_primers.csv` (one fwd + one rev per subpool). `pool_stats.csv` gains per-pool primer cost columns. With `--twist_quote true`, OMEGA also files a live `OLIGO_POOLS_REGULAR` quote against your Twist account and adds the parsed subtotal/shipping/handling/total. See [docs/PRICING_NOTES.md](docs/PRICING_NOTES.md).
 
 ## Estimating cost
 
