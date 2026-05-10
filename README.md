@@ -9,7 +9,7 @@ OMEGA designs oligopools that assemble into custom gene libraries via Golden Gat
 ## What this fork adds
 
 - **Cost accounting.** Per-run `cost_summary.csv` with Twist oligo-pool list price (offline tier table), IDT primer-pair cost (offline rate card), and an optional live `OLIGO_POOLS_REGULAR` quote against the Twist API. See [docs/PRICING_NOTES.md](docs/PRICING_NOTES.md).
-- **Wet-lab step counts.** Same summary reports the number of PCRs, SPRI cleanups, PicoGreen quants, Golden Gate assemblies, and transformations to instantiate the library (4·N + 2 steps for N subpools).
+- **Wet-lab step counts and reagent quantities.** Same summary reports the number of PCRs, SPRI cleanups, PicoGreen quants, Golden Gate assemblies, and transformations to instantiate the library (4·N + 2 steps for N subpools). A companion `reagent_summary.csv` lists total quantities of KAPA HiFi Polymerase + Buffer, the Type IIS enzyme, T4 DNA Ligase, and SPRI beads needed, with pipette volumes at NEB/KAPA standard stock concentrations.
 - **Validated primer set.** [`data/subramanian_orthogonal.csv`](data/subramanian_orthogonal.csv) ships the 165 primers Subramanian et al. flagged as orthogonal in their Supplementary Table S1. Upstream's `data/test_primers.csv` ships all 20 primers they flagged as cross-reactive and is missing one validated primer (`subra_92`); we keep both for parity but recommend the validated set. See [docs/PRIMER_NOTES.md](docs/PRIMER_NOTES.md).
 - **Length-stratified subpooling and cost advisor.** Genes are grouped by their required fragment count before pool assignment, so short genes land in shorter-oligo (cheaper) pools rather than being padded to match the longest gene in the library. At the start of each interactive `genes` run, OMEGA checks whether increasing fragmentation for any length group would drop the library into a cheaper Twist tier and prompts for confirmation. After the run, an advisory is printed if you end up just a few oligos above a tier boundary.
 - **Faster simulated annealing.** `predict_fidelity` was the bottleneck; the inner loop now uses a numpy-indexed view of the ligation matrix cached per DataFrame.
@@ -78,6 +78,13 @@ Twist offline list price: $7,727.00 (tier 5, len_301_350)
 IDT primer pairs: $355.20 (37 pools at $9.60/pool)
 Wet-lab steps: 150 total (37 PCRs + 37 PCR cleanups + 37 PicoGreen quants + 37 GG assemblies + 1 final cleanup + 1 transformation)
 Cost summary saved to output/<run>/cost_summary.csv
+Reagent quantities:
+  KAPA HiFi HotStart Polymerase              18.5 U  (37 pools × 0.5 U/pool)
+  KAPA HiFi Buffer (5×)                     185.0 µL  (37 pools × 5 µL/pool)
+  BsaI                                      555.0 U  (37 pools × 15 U/pool)
+  T4 DNA Ligase                           37000.0 U  (37 pools × 1000 U/pool)
+  SPRI beads                                925.0 µL  (37 pools × 25 µL/pool)
+Reagent summary saved to output/<run>/reagent_summary.csv
 ```
 
 Re-price an existing run without re-optimizing:
@@ -106,6 +113,7 @@ Every `genes` run writes to the directory passed as `--output_dir`:
 | `optimization_results.csv` | Per-gene record: name, submitted DNA, fragment oligos, fwd + rev primers, fidelity. |
 | `pool_stats.csv` | Per-subpool record: fidelities, gene/site counts, optimization seed, enzyme, primer pair, primer cost. |
 | `cost_summary.csv` | One-row library-level summary: oligo counts, Twist tier price, IDT primer total, wet-lab step counts, optional live-quote columns. |
+| `reagent_summary.csv` | Per-reagent quantities for the assembly: KAPA HiFi Polymerase + Buffer, Type IIS enzyme, T4 DNA Ligase, SPRI beads. Columns: `reagent`, `quantity_per_pool`, `unit`, `n_pools`, `total_quantity`, `notes` (includes pipette volume at standard stock concentration and catalog number). |
 | `experiment_details.txt` | Plain-text dump of the ligation-data experimental conditions used for fidelity scoring. |
 
 Generating an IDT bulk-quote upload from your primer file:
