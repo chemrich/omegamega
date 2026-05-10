@@ -119,11 +119,11 @@ Default ligation data is `T4_18h_37C` (Potapov et al.); the bundled BsaI cycling
 
 ## Assembly protocol
 
-Adapted from [Twist's oligopool amplification guidelines](https://www.twistbioscience.com/sites/default/files/resources/2019-09/Guidelines_OligoPools_%20Amplification_29Aug19_Rev5.1.pdf). The wet-lab counts in `cost_summary.csv` enumerate steps 2, 4, 5, 10, and 11.
+Adapted from [Twist's oligopool amplification guidelines](https://www.twistbioscience.com/resources/protocol/twist-oligo-pool-amplification-guidelines) (FRM-001034 REV 8). The wet-lab counts in `cost_summary.csv` enumerate steps 2, 4, 5, 10, and 11.
 
-1. Dilute oligopool to 1 ng/µL with nuclease-free water.
+1. Resuspend the lyophilized oligopool in 10 mM Tris pH 8.0 to ≥20 ng/µL (total yield in ng is printed on the shipping tube).
 2. Set up one PCR reaction per subpool (Table 1).
-3. Amplify with the protocol in Table 2. **Note:** the annealing temperature in step 3 is optimized for Subramanian primers + KAPA HiFi HotStart ReadyMix; adjust if you're using different primers or polymerase.
+3. Amplify with the protocol in Table 2. **Notes:** (a) annealing temperature must be optimized for your primer sequences — 61 °C is a tested starting point for Subramanian primers; (b) cycle count is length-dependent per Twist: 6–10 cycles for 20–100 nt oligos, 10–12 for 100–150 nt, 12–14 for 151–350 nt. Minimizing cycles avoids overamplification bias. (c) Expected yield assuming 1.8× per cycle: 10 ng × 1.8¹² ≈ 12 µg per 25 µL reaction at 12 cycles (theoretical; primer concentration typically caps practical yield at ~1–2 µg). Either way, far in excess of the ng-scale insert mass needed for cleanup (step 4) and assembly (Table 3).
 4. Column cleanup of each PCR reaction individually.
 5. Set up Golden Gate assembly per subpool (Table 3).
 6. Digest 2 hr at 37 °C.
@@ -135,14 +135,16 @@ Adapted from [Twist's oligopool amplification guidelines](https://www.twistbiosc
 
 If a downstream step needs PCR on the assembled library, run another digest afterward — empty vectors are smaller than complete assemblies and will be enriched in the PCR product.
 
-**Table 1 — PCR setup** (per 25 µL reaction)
+**Table 1 — PCR setup** (per 25 µL reaction; KAPA HiFi HotStart PCR Kit, Roche)
 
 | Component | Final concentration | Volume |
 |--|--|--|
-| Oligopool (1 ng/µL) | 0.04 ng/µL | 1 µL |
+| 5× KAPA HiFi Fidelity Buffer | 1× | 5 µL |
+| 10 mM dNTP mix | 0.3 mM each | 0.75 µL |
 | Forward primer (10 µM) | 0.3 µM | 0.75 µL |
 | Reverse primer (10 µM) | 0.3 µM | 0.75 µL |
-| 2× KAPA HiFi HotStart ReadyMix | 1× | 12.5 µL |
+| Oligopool (20 ng/µL) | 0.4 ng/µL (10 ng total) | 0.5 µL |
+| KAPA HiFi HotStart DNA Polymerase (1 U/µL) | 0.5 U/reaction | 0.5 µL |
 | Nuclease-free water | — | to 25 µL |
 
 **Table 2 — PCR protocol**
@@ -151,9 +153,9 @@ If a downstream step needs PCR on the assembled library, run another digest afte
 |--|--|--|
 | Initial denaturation | 95 °C | 3 min |
 | Denaturation | 98 °C | 20 sec |
-| Annealing | 61 °C | 15 sec |
+| Annealing | optimum (~61 °C for Subramanian primers) | 15 sec |
 | Extension | 72 °C | 15 sec |
-| Repeat steps 2–4 | — | 35 cycles |
+| Repeat steps 2–4 | — | 6–14 cycles (length-dependent; see step 3) |
 | Final extension | 72 °C | 1 min |
 
 **Table 3 — Golden Gate assembly** (per 20 µL reaction; T4 ligase added after a 2-hr digest)
