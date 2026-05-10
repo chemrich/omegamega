@@ -13,7 +13,11 @@ import numpy as np
 from data_classes import Enzyme, EnzymeTypes, LigationDataOpt, define_ligation_data, PrimerIterator, define_enzyme
 from library_classes import Library
 from junctions import optimize_junctions
-from pricing import cost_summary, write_cost_summary
+from pricing import (
+    annotate_pool_stats_with_primer_cost,
+    cost_summary,
+    write_cost_summary,
+)
 from Bio import SeqIO
 
 
@@ -158,6 +162,12 @@ def genes(
             'prev_sequence':p.rprimer.sequence
         } for p, fidelity, seed in library.optimized_pools]
     )
+    if pricing_enabled:
+        try:
+            pool_stats = annotate_pool_stats_with_primer_cost(pool_stats)
+        except Exception as exc:
+            print(f"Primer pricing on pool_stats skipped: {exc}")
+
     pool_stats.to_csv(join(output_dir, 'pool_stats.csv'))
     print(f"Pool-level statistics saved to {join(output_dir, 'pool_stats.csv')}")
 
@@ -166,7 +176,11 @@ def genes(
 
     if pricing_enabled:
         try:
-            summary = cost_summary(oligopool, twist_quote=twist_quote)
+            summary = cost_summary(
+                oligopool,
+                twist_quote=twist_quote,
+                pool_stats_df=pool_stats,
+            )
             out = write_cost_summary(output_dir, summary)
             offline = summary['offline_pool_price_usd']
             print(f"Twist offline list price: ${offline:,.2f} "
@@ -174,6 +188,10 @@ def genes(
             if twist_quote and 'live_pool_subtotal_usd' in summary:
                 print(f"Twist live quote subtotal: ${summary['live_pool_subtotal_usd']:,.2f}  "
                       f"total: ${summary['live_total_price_usd']:,.2f}")
+            if 'primers_total_usd' in summary:
+                print(f"IDT primer pairs: ${summary['primers_total_usd']:,.2f} "
+                      f"({summary['n_pools']} pools at "
+                      f"${summary['primers_per_pool_avg_usd']:,.2f}/pool)")
             print(f"Cost summary saved to {out}")
         except Exception as exc:
             print(f"Pricing skipped: {exc}")
@@ -293,7 +311,13 @@ def costs(
     if not exists(oligo_path):
         raise FileNotFoundError(f"No oligo_order.csv in {output_dir}")
     oligopool = pd.read_csv(oligo_path)
-    summary = cost_summary(oligopool, twist_quote=twist_quote)
+    pool_stats_df = None
+    pool_stats_path = join(output_dir, 'pool_stats.csv')
+    if exists(pool_stats_path):
+        pool_stats_df = pd.read_csv(pool_stats_path)
+    summary = cost_summary(
+        oligopool, twist_quote=twist_quote, pool_stats_df=pool_stats_df,
+    )
     out = write_cost_summary(output_dir, summary)
     offline = summary['offline_pool_price_usd']
     print(f"Twist offline list price: ${offline:,.2f} "
@@ -301,6 +325,10 @@ def costs(
     if twist_quote and 'live_pool_subtotal_usd' in summary:
         print(f"Twist live quote subtotal: ${summary['live_pool_subtotal_usd']:,.2f}  "
               f"total: ${summary['live_total_price_usd']:,.2f}")
+    if 'primers_total_usd' in summary:
+        print(f"IDT primer pairs: ${summary['primers_total_usd']:,.2f} "
+              f"({summary['n_pools']} pools at "
+              f"${summary['primers_per_pool_avg_usd']:,.2f}/pool)")
     print(f"Cost summary saved to {out}")
 
 

@@ -7,6 +7,9 @@ scripts/_probe_responses/
 # Twist OpenAPI spec (third-party docs, available from developers.twistdna.com)
 Twist-API.yaml
 
+# IDT cart-snapshot PDFs (account info, pricing — kept local)
+data/pricing/GetCartSnapShot*.pdf
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
