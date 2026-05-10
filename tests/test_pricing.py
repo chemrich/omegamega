@@ -61,6 +61,17 @@ def test_length_bin_picks_smallest_fitting(pricing):
     assert q.length_bin == "len_151_200"
 
 
+def test_length_bin_lower_edge(pricing):
+    # Lengths at the bottom of each bin should still pick that bin, not
+    # accidentally bleed into the bin below.
+    assert pricing.quote(50, 20).length_bin == "len_20_120"   # absolute floor
+    assert pricing.quote(50, 121).length_bin == "len_121_150"  # one over floor
+    assert pricing.quote(50, 151).length_bin == "len_151_200"
+    assert pricing.quote(50, 201).length_bin == "len_201_250"
+    assert pricing.quote(50, 251).length_bin == "len_251_300"
+    assert pricing.quote(50, 301).length_bin == "len_301_350"
+
+
 def test_above_max_length_raises(pricing):
     with pytest.raises(ValueError, match="exceeds Twist's max"):
         pricing.quote(50, 351)
@@ -128,19 +139,84 @@ def test_parse_handles_missing_optional_fields():
     assert parsed["pool_lines"] == []
 
 
-# ----- cost_summary integration --------------------------------------------
+def test_parse_aggregates_multiple_pool_line_items():
+    # If a single quote response carries more than one 104060 line (e.g.
+    # multi-pool order), pool_subtotal_usd must be the sum across them and
+    # pool_lines must hold all entries.
+    response = {
+        "tat": {"business_days": 5},
+        "quote": {
+            "subtotal": 2318.0,
+            "tax_total": 0.0,
+            "price": 2378.0,
+            "quote_lines": [
+                {"product_code": "SHIP", "description": "Shipping",
+                 "list_unit_price": "35.00", "quantity": "1.00"},
+                {"product_code": "Handling", "description": "Handling",
+                 "list_unit_price": "25.00", "quantity": "1.00"},
+                {"product_code": "104060",
+                 "description": "Oligo Pool Tier 1 (10 Oligos) 251-300nt",
+                 "list_unit_price": "1030.00", "quantity": "1.00"},
+                {"product_code": "104060",
+                 "description": "Oligo Pool Tier 1 (10 Oligos) 301-350nt",
+                 "list_unit_price": "1288.00", "quantity": "1.00"},
+            ],
+        },
+    }
+    parsed = parse_oligo_pool_quote(response)
+    assert len(parsed["pool_lines"]) == 2
+    assert parsed["pool_subtotal_usd"] == pytest.approx(1030.0 + 1288.0)
+    assert parsed["shipping_usd"] == 35.0
+    assert parsed["handling_usd"] == 25.0
 
-def test_cost_summary_offline_only(tmp_path):
+
+# ----- cost_summary integration --------------------------------------------
+#
+# These tests use synthetic Twist + IDT rate cards built into tmp_path
+# rather than the bundled CSVs at data/pricing/. The bundled rate cards
+# are spot-validated separately in test_offline_quote / test_idt_quote_primer
+# (the anchor tests); the cost_summary path is testing aggregation logic,
+# not rate-card values, so it shouldn't break when the bundled cards are
+# refreshed.
+
+@pytest.fixture
+def synthetic_twist_csv(tmp_path):
+    path = tmp_path / "twist.csv"
+    pd.DataFrame([
+        {"tier": 1, "tier_min": 2, "tier_max": 100,
+         "len_20_120": 100.0, "len_121_150": 200.0, "len_151_200": 300.0,
+         "len_201_250": 400.0, "len_251_300": 500.0, "len_301_350": 600.0},
+        {"tier": 2, "tier_min": 101, "tier_max": 1000,
+         "len_20_120": 1000.0, "len_121_150": 2000.0, "len_151_200": 3000.0,
+         "len_201_250": 4000.0, "len_251_300": 5000.0, "len_301_350": 6000.0},
+    ]).to_csv(path, index=False)
+    return path
+
+
+@pytest.fixture
+def synthetic_idt_csv(tmp_path):
+    path = tmp_path / "idt.csv"
+    # $1/bp at 25nmole/STD/plate keeps the arithmetic obvious.
+    pd.DataFrame([{
+        "scale": "25nmole", "purification": "STD", "format": "plate",
+        "length_min": 1, "length_max": 60,
+        "price_per_base_usd": 1.00, "plate_setup_usd": 0.0,
+        "source": "synthetic-fixture",
+    }]).to_csv(path, index=False)
+    return path
+
+
+def test_cost_summary_offline_only(synthetic_twist_csv):
     df = pd.DataFrame({
         "name": [f"oligo_{i}" for i in range(50)],
         "sequence": ["A" * 280] * 50,
     })
-    summary = cost_summary(df, twist_quote=False)
+    summary = cost_summary(df, table_path=synthetic_twist_csv, twist_quote=False)
     assert summary["n_oligos"] == 50
     assert summary["max_oligo_len_nt"] == 280
     assert summary["offline_tier"] == 1
     assert summary["offline_length_bin"] == "len_251_300"
-    assert summary["offline_pool_price_usd"] == 1030.0
+    assert summary["offline_pool_price_usd"] == 500.0  # synthetic table value
     assert "live_pool_subtotal_usd" not in summary
     assert "primers_total_usd" not in summary  # no pool_stats_df
 
@@ -186,6 +262,15 @@ def test_idt_quote_pool_pair_anchor(idt_pricing):
     assert pair["pair_cost_usd"] == 9.60
 
 
+def test_idt_quote_pool_pair_mismatched_lengths(idt_pricing):
+    # Asymmetric pair: 18 nt fwd + 22 nt rev should price each side
+    # independently and sum, not e.g. quote both at the average length.
+    pair = idt_pricing.quote_pool_pair(18, 22)
+    assert pair["fwd_primer_cost_usd"] == pytest.approx(0.24 * 18)
+    assert pair["rev_primer_cost_usd"] == pytest.approx(0.24 * 22)
+    assert pair["pair_cost_usd"] == pytest.approx(0.24 * 40)
+
+
 def test_annotate_pool_stats_with_primer_cost():
     df = pd.DataFrame({
         "pool": [0, 1],
@@ -201,7 +286,7 @@ def test_annotate_pool_stats_with_primer_cost():
     assert "pfwd_sequence" in out.columns
 
 
-def test_cost_summary_with_pool_stats():
+def test_cost_summary_with_pool_stats(synthetic_twist_csv, synthetic_idt_csv):
     oligo_df = pd.DataFrame({
         "name": [f"o{i}" for i in range(60)],
         "sequence": ["A" * 280] * 60,
@@ -211,11 +296,17 @@ def test_cost_summary_with_pool_stats():
         "pfwd_sequence": ["A" * 20] * 3,
         "prev_sequence": ["T" * 20] * 3,
     })
-    summary = cost_summary(oligo_df, pool_stats_df=pool_stats_df)
+    summary = cost_summary(
+        oligo_df,
+        table_path=synthetic_twist_csv,
+        idt_table_path=synthetic_idt_csv,
+        pool_stats_df=pool_stats_df,
+    )
     assert summary["n_pools"] == 3
     assert summary["n_primer_pairs"] == 3
-    assert summary["primers_per_pool_avg_usd"] == pytest.approx(9.60)
-    assert summary["primers_total_usd"] == pytest.approx(28.80)
+    # synthetic IDT card: $1/bp × 20 nt × 2 primers = $40/pair
+    assert summary["primers_per_pool_avg_usd"] == pytest.approx(40.00)
+    assert summary["primers_total_usd"] == pytest.approx(120.00)
     assert summary["idt_scale"] == "25nmole"
     # wet-lab counts piggy-back on pool_stats_df availability
     assert summary["wetlab_pcrs"] == 3
