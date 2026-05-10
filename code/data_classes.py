@@ -61,7 +61,7 @@ class PrimerIterator:
     """Container for primers to use in subpool amplification."""
 
     def __init__(self, file_path: str, *enzymes: Enzyme) -> "PrimerIterator":
-        df = pd.read_csv(file_path)
+        df = pd.read_csv(file_path).dropna(subset=['fwd_sequence', 'rev_sequence'])
 
         # check that dataframe has proper columns
         if not set(['fwd_name','fwd_sequence','rev_name','rev_sequence']) <= set(df.columns):
