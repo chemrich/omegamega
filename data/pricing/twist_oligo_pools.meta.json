@@ -6,5 +6,5 @@
   "n_size_tiers": 28,
   "max_pool_size": 696000,
   "max_oligo_length_nt": 350,
-  "note": "List prices encoded from the user's Twist account view on 2026-05-09. Account-specific quotes may differ; for production pricing use the --twist-quote live API path."
+  "note": "List prices encoded from the user's Twist account view on 2026-05-09. The len_251_300 column was spot-validated against live Twist quotes on 2026-05-09 at Tier 1 (10 oligos) and Tier 5 (3,512 oligos); the len_301_350 column was spot-validated on 2026-05-10 at the same two corners. Account-specific quotes may differ; for production pricing use the --twist-quote live API path."
 }

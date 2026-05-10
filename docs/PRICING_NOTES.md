@@ -43,15 +43,44 @@ Account requirements:
 * Twist whitelists the requesting IP — contact `b2b-support@twistbioscience.com`
   to register if a fresh request returns 403/500.
 
-The live quote was spot-validated on 2026-05-09 against two production quotes:
+Offline-table prices have been spot-validated against the live Twist API
+at the corners that bracket OMEGA's design space (smallest pool / largest
+pool × shortest practical oligo / longest practical oligo):
 
-| pool | tier (offline) | offline price | live `subtotal` | match |
-|---|---|---|---|---|
-| 10 oligos × 300 nt   | Tier 1 | $1,030.00 | $1,030.00 | ✅ |
-| 3,512 oligos × 300 nt | Tier 5 | $6,181.00 | $6,181.00 | ✅ |
+| pool | tier × length bin | offline price | live `subtotal` | match | validated |
+|---|---|---|---|---|---|
+| 10 oligos × 300 nt    | Tier 1 × len_251_300 | $1,030.00 | $1,030.00 | ✅ | 2026-05-09 |
+| 3,512 oligos × 300 nt | Tier 5 × len_251_300 | $6,181.00 | $6,181.00 | ✅ | 2026-05-09 |
+| 10 oligos × 350 nt    | Tier 1 × len_301_350 | $1,288.00 | $1,288.00 | ✅ | 2026-05-10 |
+| 3,512 oligos × 350 nt | Tier 5 × len_301_350 | $7,727.00 | $7,727.00 | ✅ | 2026-05-10 |
 
 Live `total_price_usd` adds shipping ($35), handling ($25), and tax (which
 varies by destination state).
+
+### Choosing oligo length: the cost trade-off isn't flat
+
+The per-cell flat rate is higher at longer lengths, but the same library
+needs fewer oligos and fewer subpools when oligos are longer (each oligo
+covers more gene content; `nfrags` decreases). Net library cost depends on
+which side of a tier boundary you land on, and on whether your IDT/labor
+savings outweigh the Twist increase. Concrete worked example from the
+bundled `configs/fpbase_avgfp_bench.yml` (878 FPbase genes, 642–804 bp):
+
+| metric | `oligo_len: 300` | `oligo_len: 350` | Δ |
+|---|---|---|---|
+| subpools | 55 | 37 | −33% |
+| total oligos | 3,512 | 2,634 | −25% |
+| Twist tier × bin | Tier 5 × len_251_300 | Tier 5 × len_301_350 | same tier |
+| Twist cost | $6,181.00 | $7,727.00 | +$1,546 |
+| IDT primer pairs | $528.00 | $355.20 | −$172.80 |
+| **Reagent total** | **$6,709.00** | **$8,082.20** | **+$1,373** |
+| wet-lab steps (4·N + 2) | 222 | 150 | −72 steps |
+
+For this library, both lengths land in Tier 5 (the 2001–6000-oligo
+bracket), so going longer just pays the higher per-cell rate without
+escaping the tier. A library with a smaller oligo count near a tier
+boundary could move *down* a tier at 350 nt and pay *less* Twist
+overall — the right call is empirical, not formulaic.
 
 ## Output
 

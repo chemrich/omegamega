@@ -9,9 +9,11 @@ Two paths:
   parses the response. Requires ``TWIST_JWT_TOKEN``, ``TWIST_END_USER_TOKEN``,
   ``TWIST_USER_EMAIL`` env vars and a usable shipping address on the account.
 
-Spot-validated against two prod quotes on 2026-05-09: Tier 1 (10 oligos x
-300 nt) → $1,030 and Tier 5 (3,512 oligos x 300 nt) → $6,181, both matching
-the offline table exactly.
+Spot-validated against four prod quotes covering the corners of OMEGA's
+design space (smallest pool / largest pool × shortest practical oligo /
+longest practical oligo), all matching the offline table exactly:
+Tier 1 × 300 nt → $1,030 and Tier 5 × 300 nt → $6,181 on 2026-05-09;
+Tier 1 × 350 nt → $1,288 and Tier 5 × 350 nt → $7,727 on 2026-05-10.
 """
 from __future__ import annotations
 

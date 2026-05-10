@@ -14,7 +14,7 @@ njunctions: null
 nopt_steps: 1000
 nopt_runs: 5
 njobs: 1
-oligo_len: 300
+oligo_len: 350
 
 add_primers: true
 pad_oligos: true
