@@ -64,6 +64,18 @@ offline_tier,offline_tier_min,offline_tier_max,
 offline_length_bin,offline_pool_price_usd,offline_source
 ```
 
+If `pool_stats.csv` is available (always written by `genes`; loaded
+opportunistically by `costs`), the IDT primer columns and wet-lab step
+counts are added too:
+
+```
+n_pools,n_primer_pairs,
+primers_per_pool_avg_usd,primers_total_usd,
+idt_scale,idt_purification,idt_format,
+wetlab_pcrs,wetlab_pcr_cleanups,wetlab_assembly_reactions,
+wetlab_final_cleanups,wetlab_transformations,wetlab_total_steps
+```
+
 `--twist_quote true` adds:
 
 ```
@@ -135,3 +147,32 @@ uv run python scripts/generate_idt_quote_request.py \
 At the IDT bulk-upload page, set Scale = 25 nm and Purification = Standard
 Desalt — those aren't template fields. The IDT-supplied template lives at
 `data/pricing/example_plate-file-upload.xls` for reference.
+
+## Wet-lab step counts
+
+Per the README's assembly protocol, instantiating an N-pool library takes:
+
+| step | per-library count |
+|---|---|
+| PCR amplifications  | N (one per subpool) |
+| PCR cleanups        | N |
+| Golden Gate assembly reactions | N |
+| Final pool-and-cleanup | 1 |
+| Transformations | 1 |
+| **Total**          | **3·N + 2** |
+
+These are emitted as `wetlab_*` columns in `cost_summary.csv` and printed
+to stdout. Optional/downstream steps (plating, colony picking, sequencing,
+re-PCR + re-digest after transformation per the README's note) aren't
+counted because they depend on what you do with the library. The
+"transformation = 1" assumption follows the README's combined-pool
+protocol; if you instead transform each subpool separately to characterize
+per-pool fidelity before pooling, multiply by N.
+
+Worked examples:
+
+| library | N pools | total wet-lab steps |
+|---|---|---|
+| `test_install` (60 oligos) | 1  | 5   |
+| `genes_test` (7 subpools)  | 7  | 23  |
+| `fpbase_avgfp_bench` (3,512 oligos) | 55 | 167 |

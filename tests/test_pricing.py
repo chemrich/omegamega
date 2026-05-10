@@ -24,6 +24,7 @@ from pricing import (  # noqa: E402
     annotate_pool_stats_with_primer_cost,
     cost_summary,
     parse_oligo_pool_quote,
+    wet_lab_steps,
 )
 
 
@@ -220,3 +221,34 @@ def test_cost_summary_with_pool_stats():
     assert summary["primers_per_pool_avg_usd"] == pytest.approx(9.60)
     assert summary["primers_total_usd"] == pytest.approx(28.80)
     assert summary["idt_scale"] == "25nmole"
+    # wet-lab counts piggy-back on pool_stats_df availability
+    assert summary["wetlab_pcrs"] == 3
+    assert summary["wetlab_pcr_cleanups"] == 3
+    assert summary["wetlab_assembly_reactions"] == 3
+    assert summary["wetlab_final_cleanups"] == 1
+    assert summary["wetlab_transformations"] == 1
+    assert summary["wetlab_total_steps"] == 11  # 3*3 + 2
+
+
+# ----- wet-lab step counts --------------------------------------------------
+
+@pytest.mark.parametrize("n_pools,total", [
+    (1, 5),     # 3 + 2
+    (7, 23),    # 7-pool gfp library
+    (55, 167),  # 55-pool fpbase library
+])
+def test_wet_lab_steps_total(n_pools, total):
+    s = wet_lab_steps(n_pools)
+    assert s["wetlab_total_steps"] == total
+    assert s["wetlab_pcrs"] == n_pools
+    assert s["wetlab_pcr_cleanups"] == n_pools
+    assert s["wetlab_assembly_reactions"] == n_pools
+    assert s["wetlab_final_cleanups"] == 1
+    assert s["wetlab_transformations"] == 1
+
+
+def test_wet_lab_steps_zero_raises():
+    with pytest.raises(ValueError):
+        wet_lab_steps(0)
+    with pytest.raises(ValueError):
+        wet_lab_steps(-1)
