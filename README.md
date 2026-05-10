@@ -60,7 +60,7 @@ uv run python ./code/omega.py --config configs/test_install.yml \
 
 ## Output files
 
-OMEGA includes 3 files as output. These are written to the output directly indicated in the OMEGA program. See below for a brief explanation of files.
+OMEGA writes its output files into the directory indicated by `--output_dir`. See below for a brief explanation of each.
 
 `oligo_order.csv` includes just oligo sequences for designed library. These may be submitted directly to order an oligopool. `optimization_results.csv` is the most comprehensive output file. For each gene, it includes the gene name, submitted sequence, oligo sequence, forward and reverse primers, and fidelity. 
 
@@ -167,6 +167,8 @@ OMEGA is still being refined - some arguments were created during development th
 - `njobs`: number of CPUs to run jobs in parallel when optimizing a single subpool. OMEGA uses `joblib` to parallelize runs defined by `nopt_runs` or `opt_seeds`. The default value is 1, but it's recommended to use more than that when optimizing pools. It significantly speeds up OMEGA.
 - `oligo_len`: max oligo length.
 - `opt_seeds`: Instead of indicating `nopt_runs`, instead provide a list of random seeds to use to initialize fragment design. This argument is partly an artifact from development, but can be useful for reproducibility. The number of seeds provided indicates the number of optimizations run for each pool. `opt_seeds` is mutually exclusive with `nopt_runs`. `nopt_runs` is sufficient in nearly all cases.
+- `pricing_enabled`: whether to write `cost_summary.csv` and add per-pool primer-cost columns to `pool_stats.csv` after `genes` runs. Default `true`. See [docs/PRICING_NOTES.md](docs/PRICING_NOTES.md).
+- `twist_quote`: in addition to the offline tier-table lookup, file a live `OLIGO_POOLS_REGULAR` quote against your Twist account and merge the parsed numbers into `cost_summary.csv`. Default `false`. Requires `TWIST_JWT_TOKEN`, `TWIST_END_USER_TOKEN`, `TWIST_USER_EMAIL` env vars and a usable shipping address on the account.
 
 
 ## References

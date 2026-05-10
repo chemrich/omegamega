@@ -14,22 +14,24 @@ This fork uses **uv** (not conda). All Python is run through `uv run` inside `.v
 uv sync                                                           # install/refresh deps from uv.lock
 uv run python ./code/omega.py genes --config configs/test_install.yml   # fast smoke test
 uv run python ./code/omega.py genes --config configs/genes_test.yml     # small full run
-uv run pytest                                                     # there are no committed tests yet
+uv run python ./code/omega.py costs --output_dir output/<run>           # re-price an existing run
+uv run pytest                                                     # tests live under tests/
 uv run ruff check code/                                           # lint
 ```
 
-The CLI is built with `jsonargparse.CLI` over two functions: `genes` (full library design) and `junctions` (design a set of GG sites without library sequences, used for Fig. 2 of the paper). Any config key can be overridden by `--<key> <value>` on the command line.
+The CLI is built with `jsonargparse.CLI` over three functions: `genes` (full library design), `junctions` (design a set of GG sites without library sequences, used for Fig. 2 of the paper), and `costs` (re-price an existing output dir from `oligo_order.csv` + `pool_stats.csv`). Any config key can be overridden by `--<key> <value>` on the command line.
 
 `opt_seeds` and `nopt_runs` are mutually exclusive — set exactly one. The default config sets `opt_seeds: null` and uses `nopt_runs`.
 
 ## Architecture
 
-Entry point `code/omega.py` orchestrates two flows. The `genes` flow is the main one:
+Entry point `code/omega.py` orchestrates three flows (`genes`, `junctions`, `costs`). The `genes` flow is the main one:
 
 1. **Parse inputs** — `data_classes.define_enzyme` resolves the Type IIS enzyme to an `Enzyme` dataclass; `define_ligation_data` loads a Potapov/Pryor ligation-frequency CSV from `data/ligation_data/` (controlled by `constants_v.LIGATION_DATA`); `PrimerIterator` reads the primer CSV and filters out any primer that contains an enzyme recognition site.
 2. **Build a `Library`** (`code/library_classes.py`) from the FASTA records. The library estimates `nfrags` (how many oligos each gene needs to be split into to fit in `oligo_len` after primers + enzyme padding), partitions genes into pools sized so `(nfrags-1) * genes_per_pool + bbsites + other_used_sites <= njunctions`, and assigns one primer pair per pool.
 3. **Optimize each pool × seed in parallel** via `joblib.Parallel(n_jobs=njobs)`. Each job constructs a `SAPool` (default, simulated annealing) or `Pool` (greedy), randomizes a starting set of orthogonal GG sites for every gene, then runs `nopt_steps` of optimization. Fidelity is scored by `predict_fidelity.predict_fidelity` against the loaded ligation matrix. Best run per pool is kept.
 4. **Package outputs** — `package_library`, `package_oligos`, and a per-pool stats DataFrame are written to `output_dir` as `optimization_results.csv`, `oligo_order.csv`, `pool_stats.csv`, and `experiment_details.txt`.
+5. **Cost annotation** (default-on, opt-out via `--pricing_enabled false`) — `code/pricing.py` adds `fwd_primer_cost_usd`/`rev_primer_cost_usd`/`primer_pair_cost_usd` columns to `pool_stats.csv` from the IDT rate card and writes a single-row `cost_summary.csv` with the Twist pool subtotal + IDT primer total. `--twist_quote true` also files a live `OLIGO_POOLS_REGULAR` quote against the Twist API.
 
 Key per-module responsibilities:
 
@@ -39,6 +41,8 @@ Key per-module responsibilities:
 - `junctions.py` — standalone optimizer for raw GG junction sets (no library sequences); the second CLI subcommand.
 - `data_classes.py` — `Enzyme`, `LigationData`, `PrimerIterator`, and the `EnzymeTypes` / `LigationDataOpt` enums consumed by jsonargparse.
 - `constants_v.py` — registry mapping `LigationDataOpt` values to ligation-data CSV paths and experimental conditions. Add new ligation datasets here.
+- `pricing.py` — `TwistOligoPoolPricing` (offline tier-table lookup), `IDTPrimerPricing` (offline per-base lookup), `parse_oligo_pool_quote` (parser anchored to real Twist responses), `live_oligo_pool_quote` (full submit→score→quote flow), and `cost_summary` / `annotate_pool_stats_with_primer_cost` helpers used by the `genes` and `costs` flows. Loaders cache by `Path` in module-level `_TABLE_CACHE`.
+- `vendors/twist.py` — vendored Twist TAPI client (see `code/vendors/NOTICE.md`). Used only by the optional `--twist_quote true` live-quote path.
 
 ## Data layout
 
@@ -46,6 +50,7 @@ Key per-module responsibilities:
 - `data/ligation_data/pmid_32877448/` — Pryor et al. cycling datasets per enzyme.
 - `data/fastas/` — example/benchmark FASTAs. `fpbase_*.fasta` are produced by `code/build_fpbase_corpus.py` (pulls FPbase, codon-optimizes for E. coli with `dnachisel` while avoiding BsaI/BsmBI/BbsI sites) and binned by `code/segment_fpbase.py`.
 - `data/test_primers.csv` — upstream primer file. **Has known issues**: ships all 20 primers Subramanian et al. flagged as cross-reactive and is missing one validated orthogonal primer (`subra_92`). Preserved as-is for parity with upstream. Prefer `data/subramanian_orthogonal.csv` (165 validated primers, paired fwd/rev) for new designs. See `docs/PRIMER_NOTES.md`.
+- `data/pricing/` — rate cards consumed by `code/pricing.py`. `twist_oligo_pools.csv` (28 size tiers × 6 length bins, flat per-pool prices) and `idt_primers.csv` (per-base + per-plate-setup keyed on scale/purification/format/length) each ship with a sibling `*.meta.json` recording source, retrieval date, and anchor numbers. The `idt_quote_request_*.xls` workbooks are user-facing IDT bulk-upload artifacts produced by `scripts/generate_idt_quote_request.py`. `example_plate-file-upload.xls` is IDT's reference template. See `docs/PRICING_NOTES.md`.
 
 ## Conventions
 
