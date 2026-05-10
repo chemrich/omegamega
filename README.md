@@ -63,9 +63,9 @@ uv run python ./code/omega.py genes --config configs/genes_test.yml --njobs 8
 `pricing_enabled` is on by default; the `genes` flow finishes with something like:
 
 ```
-Twist offline list price: $6,181.00 (tier 5, len_251_300)
-IDT primer pairs: $528.00 (55 pools at $9.60/pool)
-Wet-lab steps: 222 total (55 PCRs + 55 PCR cleanups + 55 PicoGreen quants + 55 GG assemblies + 1 final cleanup + 1 transformation)
+Twist offline list price: $7,727.00 (tier 5, len_301_350)
+IDT primer pairs: $355.20 (37 pools at $9.60/pool)
+Wet-lab steps: 150 total (37 PCRs + 37 PCR cleanups + 37 PicoGreen quants + 37 GG assemblies + 1 final cleanup + 1 transformation)
 Cost summary saved to output/<run>/cost_summary.csv
 ```
 
@@ -81,7 +81,7 @@ Add a live Twist quote (requires `TWIST_JWT_TOKEN`, `TWIST_END_USER_TOKEN`, `TWI
 uv run python ./code/omega.py costs --output_dir output/<run> --twist_quote true
 ```
 
-The live quote was spot-validated against two production quotes on 2026-05-09 — Tier 1 (10 oligos) and Tier 5 (3,512 oligos) — both subtotals matched the offline table exactly.
+The live quote was spot-validated at four corners of OMEGA's design space — Tier 1 (10 oligos) and Tier 5 (3,512 oligos), at both 300 nt and 350 nt — and every subtotal matched the offline table exactly. See [docs/PRICING_NOTES.md](docs/PRICING_NOTES.md) for the table and the design-time tradeoff between Twist cost, IDT primer cost, and wet-lab labor as oligo length changes.
 
 For pricing schema, table sources, and the OLIGO_POOLS_REGULAR API specifics, see [docs/PRICING_NOTES.md](docs/PRICING_NOTES.md).
 
@@ -125,7 +125,7 @@ Adapted from [Twist's oligopool amplification guidelines](https://www.twistbiosc
 2. Set up one PCR reaction per subpool (Table 1).
 3. Amplify with the protocol in Table 2. **Notes:** (a) annealing temperature must be optimized for your primer sequences — 61 °C is a tested starting point for Subramanian primers; (b) cycle count is length-dependent per Twist: 6–10 cycles for 20–100 nt oligos, 10–12 for 100–150 nt, 12–14 for 151–350 nt. Minimizing cycles avoids overamplification bias. (c) Expected yield assuming 1.8× per cycle: 10 ng × 1.8¹² ≈ 12 µg per 25 µL reaction at 12 cycles (theoretical; primer concentration typically caps practical yield at ~1–2 µg). Either way, far in excess of the ng-scale insert mass needed for cleanup (step 4) and assembly (Table 3).
 4. SPRI cleanup of each PCR reaction at **1.0× ratio** (default: Omega Bio-Tek Mag-Bind TotalPure NGS; AMPure XP, NEBNext Sample Purification Beads, KAPA Pure Beads, and MagBio HighPrep PCR are interchangeable). Bind 5 min RT, magnet 2–5 min, 2× 80% EtOH wash on magnet, air dry until cracked but not over-dried, elute in 20–25 µL 10 mM Tris pH 8.0. See Table 4 for ratio guidance.
-5. Quantify each cleaned PCR product with **PicoGreen** (Quant-iT dsDNA assay) on a fluorescence plate reader — dsDNA-specific, scales to 96/384-well, and pairs cleanly with liquid-handler automation (e.g. Agilent Bravo) for many-subpool runs. Qubit dsDNA HS is a fine alternative for small N. Optional TapeStation or Fragalyzer QC on a few representative subpools to confirm a single clean band at expected size and rule out the side-peak (non-specific amplification) and post-peak hump (overamplification heteroduplex) failure modes Twist documents. Normalize all subpools to a common working concentration (e.g. 20 ng/µL) so the same insert volume goes into every assembly. **Per assembly:** ~135 ng insert at 18:1 molar with 75 ng of a ~3 kb vector and 300 bp insert (`mass_insert = 18 × (insert_bp / vector_bp) × mass_vector`).
+5. Quantify each cleaned PCR product with **PicoGreen** (Quant-iT dsDNA assay) on a fluorescence plate reader — dsDNA-specific, scales to 96/384-well, and pairs cleanly with liquid-handler automation (e.g. Agilent Bravo) for many-subpool runs. Qubit dsDNA HS is a fine alternative for small N. Optional TapeStation or Fragalyzer QC on a few representative subpools to confirm a single clean band at expected size and rule out the side-peak (non-specific amplification) and post-peak hump (overamplification heteroduplex) failure modes Twist documents. Normalize all subpools to a common working concentration (e.g. 20 ng/µL) so the same insert volume goes into every assembly. **Per assembly:** ~158 ng insert at 18:1 molar with 75 ng of a ~3 kb vector and 350 bp insert (`mass_insert = 18 × (insert_bp / vector_bp) × mass_vector`).
 6. Set up Golden Gate assembly per subpool (Table 3).
 7. Digest 2 hr at 37 °C.
 8. Add 1,000 U T4 Ligase ([NEB M0202T](https://www.neb.com/en-us/products/m0202-t4-dna-ligase)) — use the higher-concentration stock to keep volumes constant.
@@ -175,8 +175,8 @@ If a downstream step needs PCR on the assembled library, run another digest afte
 |--|--|--|
 | 1.8× | ~100 bp | Twist's general recommendation; does not size-select away primer dimers |
 | 1.2× | ~150 bp | Drops most primer dimers; conservative recovery |
-| **1.0×** | **~200 bp** | **Default for OMEGA's 300 nt amplicons — drops dimers, retains >90% of target** |
-| 0.8× | ~400 bp | Too aggressive for 300 bp amplicons; appropriate post-assembly to clean up ~3 kb assembled libraries |
+| **1.0×** | **~200 bp** | **Default for OMEGA's 350 nt amplicons — drops dimers, retains >90% of target** |
+| 0.8× | ~400 bp | Too aggressive for 350 bp amplicons; appropriate post-assembly to clean up ~3 kb assembled libraries |
 
 ## Options reference
 
@@ -196,7 +196,7 @@ Set in a YAML config or override on the command line.
 - `ligation_data` (default `T4_18h_37C`) — `T4_{01h,18h}_{25C,37C}` (Potapov et al.) or `{BsaI,BbsI,BsmBI,Esp3I}_cycling` (Pryor et al.).
 - `nopt_steps` (default 1000), `nopt_runs` (default 5) — opt budget per subpool. `opt_seeds` (mutually exclusive with `nopt_runs`) sets explicit seeds for reproducibility.
 - `njobs` (default 1) — parallel optimization runs via joblib. Increase for faster pool optimization.
-- `oligo_len` (default 300) — max oligo length.
+- `oligo_len` (default 350) — max oligo length. Twist's current Oligo Pools product supports up to 350 nt; OMEGA's pricing table tops out there too.
 - `add_primers` (default `true`), `pad_oligos` (default `true`) — controls whether primers are appended and whether random DNA pads oligos to uniform length.
 - `illegal_dna_sequences` — sequences excluded from random padding (with reverse-complement awareness, so `'ATA'` also forbids `'TAT'`).
 - `other_used_sites` — extra GG sites in your assembly that aren't backbone-vector sites.

@@ -23,7 +23,7 @@ illegal_dna_sequences:
   - 'GGGGG'
 
 
-oligo_len: 300
+oligo_len: 350
 opt_seeds: null
 optimization: simulated_annealing
 other_used_sites: null

@@ -38,6 +38,8 @@ def pricing() -> TwistOligoPoolPricing:
     [
         (10, 300, 1, 1030.0),       # Tier 1, 251–300 nt — matches real prod quote
         (3512, 300, 5, 6181.0),     # Tier 5, 251–300 nt — matches real prod quote
+        (10, 350, 1, 1288.0),       # Tier 1, 301–350 nt — matches real prod quote
+        (3512, 350, 5, 7727.0),     # Tier 5, 301–350 nt — matches real prod quote
         (2, 120, 1, 400.0),         # exact tier_min, exact length max
         (100, 120, 1, 400.0),       # exact tier_max boundary
         (101, 120, 2, 800.0),       # one over tier 1 -> tier 2
@@ -236,7 +238,7 @@ def test_cost_summary_with_pool_stats():
 @pytest.mark.parametrize("n_pools,total", [
     (1, 6),     # 4 + 2
     (7, 30),    # 7-pool gfp library
-    (55, 222),  # 55-pool fpbase library
+    (37, 150),  # 37-pool fpbase library (avgFP corpus, 350 nt default)
 ])
 def test_wet_lab_steps_total(n_pools, total):
     s = wet_lab_steps(n_pools)

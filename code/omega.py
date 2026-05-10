@@ -47,7 +47,7 @@ def genes(
         njobs: int = 1,
 
         # miscellaneous
-        oligo_len: int = 300,
+        oligo_len: int = 350,
         min_size: int = 40,
         optimization: str = 'simulated_annealing',
         dev: bool = False,
