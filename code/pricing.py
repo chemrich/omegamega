@@ -429,6 +429,111 @@ class IDTPrimerPricing:
         }
 
 
+# NEB stock concentrations (U/µL) used to convert units → pipette volumes.
+_ENZYME_CONC_U_PER_UL: dict[str, float] = {
+    "BsaI":  20.0,  # BsaI-HFv2, R3733
+    "BsmBI": 10.0,  # BsmBI-v2, R0580
+    "BbsI":  10.0,  # BbsI-HF, R3539
+}
+_ENZYME_NEB_CAT: dict[str, str] = {
+    "BsaI":  "NEB R3733",
+    "BsmBI": "NEB R0580",
+    "BbsI":  "NEB R3539",
+}
+_T4_LIGASE_CONC_U_PER_UL = 400.0   # NEB M0202T high-concentration stock
+_KAPA_POLY_CONC_U_PER_UL  = 1.0    # KAPA HiFi HotStart Polymerase
+_PCR_RXN_VOL_UL            = 25.0   # Table 1 reaction volume
+_GG_ENZYME_U_PER_RXN       = 15.0   # Table 3
+_GG_T4_LIGASE_U_PER_RXN    = 1000.0 # Table 3 (added post-digest)
+_KAPA_POLY_U_PER_RXN       = 0.5    # Table 1
+_KAPA_BUFFER_UL_PER_RXN    = 5.0    # Table 1 (5× buffer)
+_SPRI_RATIO                = 1.0    # Table 4 default for 350 nt amplicons
+
+
+def reagent_quantities(n_pools: int, enzyme_name: str = "BsaI") -> pd.DataFrame:
+    """Reagent quantities to physically instantiate a designed library.
+
+    Covers the four consumables with meaningful volume per run: KAPA HiFi
+    (PCR), the Type IIS enzyme (GG digest), T4 DNA Ligase (GG ligation), and
+    SPRI beads (PCR cleanup). Quantities follow Tables 1–4 of the README.
+
+    Args:
+        n_pools: Number of subpools (PCR reactions = GG reactions = SPRI
+            cleanups).
+        enzyme_name: Type IIS enzyme used; one of BsaI, BsmBI, BbsI.
+
+    Returns:
+        DataFrame with columns reagent, quantity_per_pool, unit, n_pools,
+        total_quantity, notes.
+    """
+    if n_pools < 1:
+        raise ValueError(f"n_pools must be >= 1, got {n_pools}")
+    if enzyme_name not in _ENZYME_CONC_U_PER_UL:
+        raise ValueError(
+            f"Unknown enzyme {enzyme_name!r}. "
+            f"Supported: {sorted(_ENZYME_CONC_U_PER_UL)}"
+        )
+
+    enz_conc = _ENZYME_CONC_U_PER_UL[enzyme_name]
+    enz_cat  = _ENZYME_NEB_CAT[enzyme_name]
+    enz_ul   = _GG_ENZYME_U_PER_RXN / enz_conc
+
+    t4_ul    = _GG_T4_LIGASE_U_PER_RXN / _T4_LIGASE_CONC_U_PER_UL
+    kapa_ul  = _KAPA_POLY_U_PER_RXN / _KAPA_POLY_CONC_U_PER_UL
+    spri_ul  = _SPRI_RATIO * _PCR_RXN_VOL_UL
+
+    rows = [
+        {
+            "reagent":           "KAPA HiFi HotStart Polymerase",
+            "quantity_per_pool": _KAPA_POLY_U_PER_RXN,
+            "unit":              "U",
+            "n_pools":           n_pools,
+            "total_quantity":    _KAPA_POLY_U_PER_RXN * n_pools,
+            "notes":             f"{kapa_ul:.2g} µL/pool at {_KAPA_POLY_CONC_U_PER_UL:.0f} U/µL (KAPA HiFi HotStart PCR Kit)",
+        },
+        {
+            "reagent":           "KAPA HiFi Buffer (5×)",
+            "quantity_per_pool": _KAPA_BUFFER_UL_PER_RXN,
+            "unit":              "µL",
+            "n_pools":           n_pools,
+            "total_quantity":    _KAPA_BUFFER_UL_PER_RXN * n_pools,
+            "notes":             "PCR step (Table 1); bundled with KAPA HiFi HotStart PCR Kit",
+        },
+        {
+            "reagent":           enzyme_name,
+            "quantity_per_pool": _GG_ENZYME_U_PER_RXN,
+            "unit":              "U",
+            "n_pools":           n_pools,
+            "total_quantity":    _GG_ENZYME_U_PER_RXN * n_pools,
+            "notes":             f"{enz_ul:.2g} µL/pool at {enz_conc:.0f} U/µL ({enz_cat}); GG assembly digest",
+        },
+        {
+            "reagent":           "T4 DNA Ligase",
+            "quantity_per_pool": _GG_T4_LIGASE_U_PER_RXN,
+            "unit":              "U",
+            "n_pools":           n_pools,
+            "total_quantity":    _GG_T4_LIGASE_U_PER_RXN * n_pools,
+            "notes":             f"{t4_ul:.2g} µL/pool at {_T4_LIGASE_CONC_U_PER_UL:.0f} U/µL (NEB M0202T); GG assembly ligation",
+        },
+        {
+            "reagent":           "SPRI beads",
+            "quantity_per_pool": spri_ul,
+            "unit":              "µL",
+            "n_pools":           n_pools,
+            "total_quantity":    spri_ul * n_pools,
+            "notes":             f"{_SPRI_RATIO:.1f}× of {_PCR_RXN_VOL_UL:.0f} µL PCR; AMPure XP / Mag-Bind / equivalent",
+        },
+    ]
+    return pd.DataFrame(rows)
+
+
+def write_reagent_summary(output_dir: str | Path, df: pd.DataFrame) -> Path:
+    """Write the DataFrame from :func:`reagent_quantities` to ``reagent_summary.csv``."""
+    out = Path(output_dir) / "reagent_summary.csv"
+    df.to_csv(out, index=False)
+    return out
+
+
 def wet_lab_steps(n_pools: int) -> dict:
     """Count of wet-lab manipulations to physically instantiate a designed
     library, following the README's assembly protocol.
