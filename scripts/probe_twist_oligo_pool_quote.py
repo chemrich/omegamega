@@ -10,8 +10,8 @@ Stages:
 The script is intended to be run interactively with --stage. Default sandbox.
 
 Auth via env:
-  TWIST_JWT_TOKEN, TWIST_END_USER_TOKEN, TWIST_USER_EMAIL (defaults to
-  redacted@example.com, matching the end-user-token payload).
+  TWIST_JWT_TOKEN, TWIST_END_USER_TOKEN, TWIST_USER_EMAIL (must match the
+  end-user-token payload; required, no default).
 
 Usage:
   uv run python scripts/probe_twist_oligo_pool_quote.py --stage auth
@@ -35,7 +35,6 @@ sys.path.insert(0, str(ROOT / "code"))
 
 from vendors.twist import TwistVendor  # noqa: E402
 
-DEFAULT_EMAIL = "redacted@example.com"
 RESPONSES_DIR = ROOT / "scripts" / "_probe_responses"
 
 
@@ -44,7 +43,9 @@ def _now() -> str:
 
 
 def _vendor(sandbox: bool) -> TwistVendor:
-    email = os.environ.get("TWIST_USER_EMAIL") or DEFAULT_EMAIL
+    email = os.environ.get("TWIST_USER_EMAIL")
+    if not email:
+        raise SystemExit("TWIST_USER_EMAIL must be set (Twist account email)")
     return TwistVendor(user_email=email, sandbox=sandbox)
 
 
