@@ -399,6 +399,30 @@ class IDTPrimerPricing:
         }
 
 
+def wet_lab_steps(n_pools: int) -> dict:
+    """Count of wet-lab manipulations to physically instantiate a designed
+    library, following the README's assembly protocol.
+
+    Per subpool: 1 PCR amplification, 1 column cleanup, 1 Golden Gate
+    assembly. Then 1 final pool-and-cleanup, and 1 transformation of the
+    combined library.
+
+    Optional/downstream steps (plating, colony picking, sequencing,
+    re-PCR + re-digest after transformation) aren't counted because they
+    depend on what you do with the library.
+    """
+    if n_pools < 1:
+        raise ValueError(f"n_pools must be >= 1, got {n_pools}")
+    return {
+        "wetlab_pcrs": n_pools,
+        "wetlab_pcr_cleanups": n_pools,
+        "wetlab_assembly_reactions": n_pools,
+        "wetlab_final_cleanups": 1,
+        "wetlab_transformations": 1,
+        "wetlab_total_steps": 3 * n_pools + 2,
+    }
+
+
 def cost_summary(
     oligo_order_df: pd.DataFrame,
     *,
@@ -452,6 +476,7 @@ def cost_summary(
         })
 
     if pool_stats_df is not None and len(pool_stats_df) > 0:
+        n_pools = int(len(pool_stats_df))
         idt = IDTPrimerPricing.from_csv(idt_table_path)
         per_pool: list[float] = []
         for _, row in pool_stats_df.iterrows():
@@ -464,14 +489,15 @@ def cost_summary(
             )
             per_pool.append(pair["pair_cost_usd"])
         summary.update({
-            "n_pools": int(len(pool_stats_df)),
-            "n_primer_pairs": int(len(pool_stats_df)),
+            "n_pools": n_pools,
+            "n_primer_pairs": n_pools,
             "primers_per_pool_avg_usd": sum(per_pool) / len(per_pool),
             "primers_total_usd": float(sum(per_pool)),
             "idt_scale": idt_scale,
             "idt_purification": idt_purification,
             "idt_format": idt_format,
         })
+        summary.update(wet_lab_steps(n_pools))
 
     return summary
 
