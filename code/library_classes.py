@@ -490,7 +490,7 @@ class Pool:
             self.ligation_data
         )
         self.min_site_fidelity = predict_minimum_site(
-            [np.array([df.ggsite.to_numpy() for df in self.optimized_sites]).flatten()] + [self.upstream_bbsite, self.downstream_bbsite],
+            [np.array([df.ggsite.to_numpy() for df in self.optimized_sites]).flatten()] + [[self.upstream_bbsite], [self.downstream_bbsite]],
             self.ligation_data
         )
 
@@ -529,7 +529,7 @@ class Pool:
             self.ligation_data
         )
         min_site_fidelity = predict_minimum_site(
-            [np.array([df.ggsite.to_numpy() for df in self.optimized_sites]).flatten()] + [self.upstream_bbsite, self.downstream_bbsite],
+            [np.array([df.ggsite.to_numpy() for df in self.optimized_sites]).flatten()] + [[self.upstream_bbsite], [self.downstream_bbsite]],
             self.ligation_data
         )
 
@@ -723,7 +723,7 @@ class SAPool:
             self.ligation_data
         )
         self.min_site_fidelity = predict_minimum_site(
-            list(chain(*[df.ggsite.tolist() for df in list(self.optimized_sites.values())])) + [self.upstream_bbsite, self.downstream_bbsite],
+            list(chain(*[df.ggsite.tolist() for df in list(self.optimized_sites.values())])) + [[self.upstream_bbsite], [self.downstream_bbsite]],
             self.ligation_data
         )
 
