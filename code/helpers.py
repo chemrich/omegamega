@@ -78,6 +78,13 @@ def random_dna(size: int) -> str:
     bases = np.random.choice(_DNA_BASES, size=size, p=_DNA_PROBS)
     return bases.view((str, size)).item()
 
+def random_dna_batch(size: int, batch_size: int) -> list[str]:
+    """Generate a batch of random DNA strings with 40% GC content."""
+    if size <= 0:
+        return [""] * batch_size
+    bases = np.random.choice(_DNA_BASES, size=(batch_size, size), p=_DNA_PROBS)
+    return ["".join(row) for row in bases]
+
 def flatten(iterable: list) -> list:
     """Remove one level of a nested list."""
 

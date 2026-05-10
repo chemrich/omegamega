@@ -1,6 +1,7 @@
 """Design oligopool for scalable gene assembly."""
 
 import os
+import sys
 from os.path import join, exists
 from typing import Optional, Union
 import random
@@ -17,6 +18,8 @@ from pricing import (
     annotate_pool_stats_with_primer_cost,
     cost_summary,
     write_cost_summary,
+    TwistOligoPoolPricing,
+    DEFAULT_TWIST_TABLE,
 )
 from Bio import SeqIO
 
@@ -115,6 +118,7 @@ def genes(
         downstream_bbsite=downstream_bbsite,
         other_used_sites=other_used_sites,
         illegal_dna_sequences=illegal_dna_sequences,
+        njunctions=njunctions,
         min_size=min_size
     )
     
@@ -129,13 +133,34 @@ def genes(
         raise ValueError('Cannot provide values for both `nopt_runs` and `opt_seeds`.')
 
     # assign genes to pools
+    use_plan = None
+    better_plan = library.suggest_better_plan()
+    if better_plan and sys.stdin.isatty():
+        print("\n--- OMEGA Cost Optimization ---")
+        current_cost = library.estimate_cost(library.plan_fragmentation())
+        new_cost = library.estimate_cost(better_plan)
+        savings = current_cost['total_cost'] - new_cost['total_cost']
+
+        print(f"Standard fragmentation cost: ${current_cost['total_cost']:,.2f}")
+        print(f"A cheaper plan exists: ${new_cost['total_cost']:,.2f} (Save ${savings:,.2f}!)")
+        print("This plan increases fragmentation for some groups to drop into a cheaper Twist length tier.")
+
+        try:
+            ans = input("Would you like to use the cost-optimized plan? [Y/n]: ").strip().lower()
+            if ans in ('', 'y', 'yes'):
+                use_plan = better_plan
+                print("Using cost-optimized plan.")
+        except EOFError:
+            pass
+
     library.optimize_pools(
         njunctions=njunctions,
         nopt_steps=nopt_steps,
         opt_seeds=random_seeds,
         njobs=njobs,
         ligation_data=ligation_data.data,
-        optimization=optimization
+        optimization=optimization,
+        planned_groups=use_plan
     )
 
     optimized_library = library.package_library(add_primers=add_primers, pad_oligo=pad_oligos)
@@ -185,6 +210,12 @@ def genes(
             offline = summary['offline_pool_price_usd']
             print(f"Twist offline list price: ${offline:,.2f} "
                   f"(tier {summary['offline_tier']}, {summary['offline_length_bin']})")
+            
+            # Efficiency alert
+            eff = TwistOligoPoolPricing.from_csv(DEFAULT_TWIST_TABLE).get_tier_efficiency(len(oligopool))
+            if eff and eff.get('over_prev_tier', 0) > 0 and eff['over_prev_tier'] < (eff['tier_max'] - eff['tier_min']) * 0.05:
+                print(f"\n[ADVISORY] You are only {eff['over_prev_tier']} oligos over the previous Twist pricing tier boundary ({eff['prev_tier_max']}).")
+                print("Consider dropping a few non-essential genes or increasing junction counts to consolidate pools and save money.")
             if twist_quote and 'live_pool_subtotal_usd' in summary:
                 print(f"Twist live quote subtotal: ${summary['live_pool_subtotal_usd']:,.2f}  "
                       f"total: ${summary['live_total_price_usd']:,.2f}")

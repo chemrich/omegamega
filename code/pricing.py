@@ -130,6 +130,34 @@ class TwistOligoPoolPricing:
             pool_price_usd=float(row[bin_key]),
         )
 
+    def get_tier_efficiency(self, n_oligos: int) -> dict:
+        """Calculate how close we are to the tier boundaries."""
+        rows = self.table[
+            (self.table.tier_min <= n_oligos) & (self.table.tier_max >= n_oligos)
+        ]
+        if rows.empty:
+            return {}
+        row = rows.iloc[0]
+        
+        tier_max = int(row.tier_max)
+        tier_min = int(row.tier_min)
+        
+        # Check if we are just above a tier boundary
+        prev_tier_max = 0
+        if int(row.tier) > 1:
+            prev_tier = self.table[self.table.tier == int(row.tier) - 1]
+            if not prev_tier.empty:
+                prev_tier_max = int(prev_tier.iloc[0].tier_max)
+        
+        return {
+            'current_n': n_oligos,
+            'tier_min': tier_min,
+            'tier_max': tier_max,
+            'prev_tier_max': prev_tier_max,
+            'over_prev_tier': n_oligos - prev_tier_max if prev_tier_max > 0 else 0,
+            'percent_of_tier': (n_oligos - tier_min) / (tier_max - tier_min) if tier_max > tier_min else 1.0
+        }
+
 
 def parse_oligo_pool_quote(response: dict) -> dict:
     """Pull pool/shipping/handling/total out of an OLIGO_POOLS_REGULAR quote.

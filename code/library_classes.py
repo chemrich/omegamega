@@ -13,7 +13,7 @@ from Bio.Seq import Seq
 from tqdm import tqdm
 
 from data_classes import Enzyme, PrimerIterator
-from helpers import unique_orthogonal, random_dna, dna_contains_seq
+from helpers import unique_orthogonal, random_dna, dna_contains_seq, random_dna_batch, _compile_dna_pattern
 from predict_fidelity import predict_fidelity, predict_minimum, predict_minimum_site, geneset_fidelity
 
 from joblib import Parallel, delayed
@@ -89,6 +89,7 @@ class Library:
         downstream_bbsite: str,
         other_used_sites: Union[np.ndarray, None],
         illegal_dna_sequences: tuple[str],
+        njunctions: int = 50,
         min_size: int = 40
     ):
 
@@ -100,8 +101,8 @@ class Library:
         self.downstream_bbsite = downstream_bbsite
         self.other_used_sites = other_used_sites or np.array([])
         self.illegal_dna_sequences = illegal_dna_sequences
+        self.njunctions = njunctions
         self.min_size = min_size
-        self.nfrags = self.estimate_nfrags()
 
 
         self._max_primer_space = self.__get_max_primer_space()
@@ -114,48 +115,51 @@ class Library:
     #? TODO: Be careful - you have two things labelled 'optimize_pools' - you need to change that.
     def optimize_pools(
             self, nopt_steps: int, njobs: int, njunctions: int, ligation_data: pd.DataFrame,
-            optimization: str, nopt_runs: Optional[int] = None, opt_seeds: Optional[list[int]] = None
+            optimization: str, nopt_runs: Optional[int] = None, opt_seeds: Optional[list[int]] = None,
+            planned_groups: Optional[list[dict]] = None
     ) -> list["Pool"]:
-        """Optimize each pool in the library. Each pool is run for the number of nopt_runs
-        with each run using a different random seed.
+        """Optimize each pool in the library.
         
-        Args:
-            nopt_steps: Number of steps to run the optimization.
-            nopt_runs: Number of times to optimize each pool.
-            njobs: Number of CPUs to use for separate optimization runs.
-            njunctions: Number of junctions used per pool - should include the upstream
-                and downstream sites.
-            ligation_data: DataFrame containing ligation freq data for all GG sites. Index
-                and Columns should be str formatted GG sites.
+        Genes are grouped by length (stratified) so that shorter genes don't get 
+        over-fragmented or over-padded to match the longest gene in the library.
         """
-        #pylint:disable=line-too-long
+        # pylint:disable=line-too-long
 
-        ngenes_per_pool = (njunctions - len([self.upstream_bbsite, self.downstream_bbsite]) - len(self.other_used_sites)) // (self.estimate_nfrags() - 1)
-        npools = ceil(len(self.genes) / ngenes_per_pool)
+        planned = planned_groups if planned_groups is not None else self.plan_fragmentation()
+        
+        total_genes = len(self.genes)
+        total_pools = sum(p['npools'] for p in planned)
+        print(f"Planning library: {total_genes} genes stratified into {len(planned)} length groups, {total_pools} pools total.")
 
-        print(f"Target number of genes per pool: {ngenes_per_pool} genes assembled in {npools} pools.")
-        print(f"Genes are broken into {self.estimate_nfrags()} fragments.")
+        if len(self.primers) < total_pools:
+            raise ValueError(f'Not enough primers for estimated number of pools ({total_pools} needed, {len(self.primers)} available).')
 
-        # if not enough primers for estimated pools, raise error
-        if len(self.primers) < (len(self.genes)/ngenes_per_pool):
-            raise ValueError('Not enough primers for estimated number of pools.')
-
-        # run optimization for each pool — parallelize across pools × seeds
-        pool_specs = list(zip(
-            count(0),
-            chunked_even(self.genes, ngenes_per_pool),
-            self.primers
-        ))
-
+        all_primers = self.primers
+        primer_idx = 0
+        
         jobs = []
-        for i, gene_pool, (pfor, prev) in pool_specs:
-            for rand_seed in opt_seeds:
-                jobs.append((i, gene_pool, pfor, prev, rand_seed))
+        pool_meta = []
+        
+        for group in planned:
+            nfrags = group['nfrags']
+            group_oligo_len = group['oligo_len']
+            group_genes = group['genes']
+            ngenes_per_pool = group['ngenes_per_pool']
+            
+            for gene_pool in chunked_even(group_genes, ngenes_per_pool):
+                p_idx = len(pool_meta)
+                pfor, prev = all_primers[primer_idx]
+                primer_idx += 1
+                
+                for rand_seed in opt_seeds:
+                    jobs.append((p_idx, gene_pool, pfor, prev, rand_seed, nfrags, group_oligo_len))
+                
+                pool_meta.append({'id': p_idx, 'nfrags': nfrags})
 
         print('Optimizing library...')
         results = Parallel(n_jobs=njobs)(
             delayed(optimize_pools)(
-                name=i,
+                name=p_idx,
                 genes=gene_pool,
                 enzyme=self.enzyme,
                 upstream_bbsite=self.upstream_bbsite,
@@ -164,26 +168,26 @@ class Library:
                 forward_primer=pfor,
                 reverse_primer=prev,
                 illegal_dna_sequences=self.illegal_dna_sequences,
-                oligo_len=self.oligo_len,
-                nfrags=self.nfrags,
+                oligo_len=group_oligo_len,
+                nfrags=nfrags,
                 ligation_data=ligation_data,
                 nopt_steps=nopt_steps,
                 random_seed=rand_seed,
                 optimization=optimization,
             )
-            for i, gene_pool, pfor, prev, rand_seed in tqdm(jobs, ncols=100)
+            for p_idx, gene_pool, pfor, prev, rand_seed, nfrags, group_oligo_len in tqdm(jobs, ncols=100)
         )
 
         # group results by pool index; pick highest-fidelity run per pool
         all_opt_runs: list = []
-        per_pool: dict = {i: [] for i, *_ in pool_specs}
-        for (i, *_), result in zip(jobs, results):
-            per_pool[i].append(result)
+        per_pool: dict = {m['id']: [] for m in pool_meta}
+        for (p_idx, *_), result in zip(jobs, results):
+            per_pool[p_idx].append(result)
             all_opt_runs.append(result)
 
         optimized = []
-        for i, *_ in pool_specs:
-            runs = sorted(per_pool[i], key=lambda x: x[1])
+        for m in pool_meta:
+            runs = sorted(per_pool[m['id']], key=lambda x: x[1])
             optimized.append(runs[-1])
 
         self.all_opt_runs = all_opt_runs
@@ -191,25 +195,25 @@ class Library:
         self._njobs = njobs
 
 
-    def estimate_nfrags(self) -> int:
-        """Esitmate the number of fragments the longest gene has to be broken into.
-        This value is used to fragment all genes in the library into the same number.
-        This is to ward against variable assembly efficiencies due to fragment number.
+    def estimate_nfrags(self, seq_len: Optional[int] = None) -> int:
+        """Estimate the number of fragments a sequence has to be broken into.
+        
+        Args:
+            seq_len: If provided, estimate for this length. Otherwise, use the longest gene.
 
-        Returns: integer indicating number of fragments library should be broken into.
+        Returns: integer indicating number of fragments.
         """
 
-        # get longest pairs of primers - they should be the same length, but in case they're not...
+        # get longest pairs of primers
         longest_primers = ["", ""]
         for pfor, prev in self.primers:
             if sum(map(len, [pfor.sequence, prev.sequence])) > sum(map(len, longest_primers)):
                 longest_primers = [pfor.sequence, prev.sequence]
-            else:
-                continue
 
-        # identify longest sequence length to fragment
-        longest_gene = max(map(len, [g[1] for g in self.genes]))
-        # subtract some bp from oligo_len so we do not get sequences that pefectly fit oligo_len
+        # identify sequence length to fragment
+        target_len = seq_len if seq_len is not None else max(map(len, [g[1] for g in self.genes]))
+        
+        # subtract some bp from oligo_len so we do not get sequences that perfectly fit oligo_len
         coding_space = get_coding_space(
             self.oligo_len-24,
             fprimer=longest_primers[0],
@@ -218,9 +222,102 @@ class Library:
         )
 
         for nfrags in count(1):
-            if longest_gene // nfrags <= coding_space:
+            if target_len // nfrags <= coding_space:
                 return nfrags
 
+        return None
+
+    def plan_fragmentation(self) -> list[dict]:
+        """Group genes by required nfrags and calculate costs.
+        
+        Returns:
+            List of dicts, each describing a group of genes with the same nfrags.
+        """
+        groups = {}
+        for name, seq in self.genes:
+            n = self.estimate_nfrags(len(seq))
+            if n not in groups:
+                groups[n] = []
+            groups[n].append((name, seq))
+            
+        planned = []
+        for nfrags in sorted(groups.keys()):
+            gene_list = groups[nfrags]
+            
+            # Calculate required oligo length for this group (with safety margin)
+            group_max_gene = max(len(gene[1]) for gene in gene_list)
+            # 54bp for primers (40) + sites (14). Add 24bp safety margin.
+            group_oligo_len = ceil(group_max_gene / nfrags) + 78
+            group_oligo_len = min(group_oligo_len, self.oligo_len)
+            
+            # calculate genes per pool for this nfrags
+            ngenes_per_pool = (self.njunctions - 2 - len(self.other_used_sites)) // (nfrags - 1) if nfrags > 1 else len(gene_list)
+            if ngenes_per_pool == 0: ngenes_per_pool = 1
+            
+            planned.append({
+                'nfrags': nfrags,
+                'oligo_len': group_oligo_len,
+                'genes': gene_list,
+                'ngenes_per_pool': ngenes_per_pool,
+                'npools': ceil(len(gene_list) / ngenes_per_pool)
+            })
+            
+        return planned
+
+    def estimate_cost(self, planned_groups: list[dict]) -> dict:
+        """Estimate costs for a given fragmentation plan."""
+        from pricing import TwistOligoPoolPricing, DEFAULT_TWIST_TABLE
+        
+        n_oligos = sum(len(g['genes']) * g['nfrags'] for g in planned_groups)
+        max_oligo_len = max(g['oligo_len'] for g in planned_groups) if planned_groups else 0
+        total_pools = sum(g['npools'] for g in planned_groups)
+            
+        twist_pricing = TwistOligoPoolPricing.from_csv(DEFAULT_TWIST_TABLE)
+        try:
+            twist_cost = twist_pricing.quote(n_oligos, max_oligo_len).pool_price_usd
+        except:
+            twist_cost = 999999.0 # Out of bounds
+            
+        primer_cost = total_pools * 9.60 # IDT average
+        
+        return {
+            'twist_cost': twist_cost,
+            'primer_cost': primer_cost,
+            'total_cost': twist_cost + primer_cost,
+            'n_oligos': n_oligos,
+            'max_oligo_len': max_oligo_len,
+            'n_pools': total_pools
+        }
+
+    def suggest_better_plan(self) -> Optional[list[dict]]:
+        """Search for a cheaper fragmentation plan by increasing nfrags."""
+        current_plan = self.plan_fragmentation()
+        current_cost = self.estimate_cost(current_plan)
+        
+        best_plan = current_plan
+        best_cost = current_cost
+        
+        # Try increasing nfrags for each group one by one
+        for i in range(len(current_plan)):
+            test_plan = [dict(g) for g in current_plan]
+            test_plan[i]['nfrags'] += 1
+            # recalculate oligo_len, pool count, and genes-per-pool for the new nfrags
+            nfrags = test_plan[i]['nfrags']
+            genes = test_plan[i]['genes']
+            group_max_gene = max(len(gene[1]) for gene in genes)
+            test_plan[i]['oligo_len'] = min(ceil(group_max_gene / nfrags) + 78, self.oligo_len)
+            ngenes_per_pool = (self.njunctions - 2 - len(self.other_used_sites)) // (nfrags - 1)
+            if ngenes_per_pool <= 0: ngenes_per_pool = 1
+            test_plan[i]['ngenes_per_pool'] = ngenes_per_pool
+            test_plan[i]['npools'] = ceil(len(genes) / ngenes_per_pool)
+            
+            test_cost = self.estimate_cost(test_plan)
+            if test_cost['total_cost'] < best_cost['total_cost'] * 0.98: # 2% savings threshold
+                best_cost = test_cost
+                best_plan = test_plan
+                
+        if best_plan != current_plan:
+            return best_plan
         return None
 
 
@@ -389,7 +486,7 @@ class Pool:
             self.ligation_data
         )
         self.min_gene_fidelity = predict_minimum(
-            [df.ggsite.to_numpy() for df in self.optimized_sites] + [self.upstream_bbsite, self.downstream_bbsite],
+            [df.ggsite.to_numpy() for df in self.optimized_sites] + [[self.upstream_bbsite], [self.downstream_bbsite]],
             self.ligation_data
         )
         self.min_site_fidelity = predict_minimum_site(
@@ -428,7 +525,7 @@ class Pool:
         """Return optimization output for pool."""
 
         min_gene_fidelity = predict_minimum(
-            [df.ggsite.to_numpy() for df in self.optimized_sites] + [self.upstream_bbsite, self.downstream_bbsite],
+            [df.ggsite.to_numpy() for df in self.optimized_sites] + [[self.upstream_bbsite], [self.downstream_bbsite]],
             self.ligation_data
         )
         min_site_fidelity = predict_minimum_site(
@@ -876,70 +973,41 @@ class Gene:
     
     def __add_padding(self, oligo: str, max_attempts: int = 100000) -> str:
         """Add random DNA padding to oligo."""
-        #pylint: disable=unbalanced-tuple-unpacking
+        # pylint: disable=unbalanced-tuple-unpacking
 
         extra_space = self.oligo_len - len(self.fprimer.sequence) - len(self.rprimer.sequence) - len(oligo)
-        # Nothing to vary; boundary constraints (if any) are determined entirely
-        # by the upstream fragmentation and primer assignment.
         if extra_space <= 0:
             return oligo
-        left, right = np.array_split(np.arange(extra_space), 2)
 
-        for _ in range(max_attempts):
+        left_size = extra_space // 2
+        right_size = extra_space - left_size
 
-            left_padding = random_dna(left.size).lower()
-            right_padding = random_dna(right.size).lower()
+        illegal_elements = tuple([self.enzyme.seq] + list(self.illegal_dna_sequences))
+        # Overlap window must be wide enough for the longest illegal element so that any
+        # element straddling the padding/primer or padding/oligo boundary is caught.
+        overlap = max(len(e) for e in illegal_elements) - 1
+        pattern = _compile_dna_pattern(illegal_elements, reverse_complement=True)
 
+        def find_valid_padding(size, prefix, suffix, batch_size=1000):
+            if size <= 0:
+                return ""
+            for _ in range(max_attempts // batch_size + 1):
+                batch = random_dna_batch(size, batch_size)
+                for cand in batch:
+                    cand_lower = cand.lower()
+                    if not pattern.search(prefix + cand_lower + suffix):
+                        return cand_lower
+            raise RuntimeError(
+                f"Could not generate clean padding for gene {self.name!r} "
+                f"after {max_attempts} attempts. "
+                f"Illegal sequences {self.illegal_dna_sequences} may be too restrictive "
+                f"given primer/oligo flanking context."
+            )
 
-            # ensure that the generated DNA does not contain any
-            # disallowed sequences. Also make sure that these
-            # sequences do not form when the padding meets the oligo
-            # or primer.
-            contains_element = []
-            for illegal_element in ([self.enzyme.seq] +
-                                    [*self.illegal_dna_sequences]):
+        left_padding = find_valid_padding(left_size, self.fprimer.sequence[-overlap:], oligo[:overlap])
+        right_padding = find_valid_padding(right_size, oligo[-overlap:], self.rprimer.sequence[:overlap])
 
-                # overlap is 1 less than element length, otherwise
-                # will match some elements (like enzyme) that are
-                # supposed to be in oligo sequence.
-                overlap = len(illegal_element) - 1
-
-                #check left/upstream padding
-                contains_element.append(
-                    dna_contains_seq(
-                        (self.fprimer.sequence[-overlap:] +
-                            left_padding +
-                            oligo[:overlap]),
-                        illegal_element
-                    )
-                )
-
-                # check right/downstream padding
-                contains_element.append(
-                    dna_contains_seq(
-                        (oligo[-overlap:] +
-                            right_padding +
-                            self.rprimer.sequence[:overlap]),
-                        illegal_element
-                    )
-                )
-
-
-            if not any(contains_element):
-                candidate_seq = "".join([
-                    left_padding,
-                    oligo,
-                    right_padding,
-                ])
-
-                return candidate_seq
-
-        raise RuntimeError(
-            f"Could not generate clean padding for gene {self.name!r} "
-            f"after {max_attempts} attempts. "
-            f"Illegal sequences {self.illegal_dna_sequences} may be too restrictive "
-            f"given primer/oligo flanking context."
-        )
+        return "".join([left_padding, oligo, right_padding])
 
     def __add_primers(self, oligo: str) -> str:
         """Return oligo with forward and reverse primers attached."""
