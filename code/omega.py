@@ -192,6 +192,13 @@ def genes(
                 print(f"IDT primer pairs: ${summary['primers_total_usd']:,.2f} "
                       f"({summary['n_pools']} pools at "
                       f"${summary['primers_per_pool_avg_usd']:,.2f}/pool)")
+            if 'wetlab_total_steps' in summary:
+                print(f"Wet-lab steps: {summary['wetlab_total_steps']} total "
+                      f"({summary['wetlab_pcrs']} PCRs + "
+                      f"{summary['wetlab_pcr_cleanups']} PCR cleanups + "
+                      f"{summary['wetlab_assembly_reactions']} GG assemblies + "
+                      f"{summary['wetlab_final_cleanups']} final cleanup + "
+                      f"{summary['wetlab_transformations']} transformation)")
             print(f"Cost summary saved to {out}")
         except Exception as exc:
             print(f"Pricing skipped: {exc}")
@@ -329,6 +336,13 @@ def costs(
         print(f"IDT primer pairs: ${summary['primers_total_usd']:,.2f} "
               f"({summary['n_pools']} pools at "
               f"${summary['primers_per_pool_avg_usd']:,.2f}/pool)")
+    if 'wetlab_total_steps' in summary:
+        print(f"Wet-lab steps: {summary['wetlab_total_steps']} total "
+              f"({summary['wetlab_pcrs']} PCRs + "
+              f"{summary['wetlab_pcr_cleanups']} PCR cleanups + "
+              f"{summary['wetlab_assembly_reactions']} GG assemblies + "
+              f"{summary['wetlab_final_cleanups']} final cleanup + "
+              f"{summary['wetlab_transformations']} transformation)")
     print(f"Cost summary saved to {out}")
 
 
