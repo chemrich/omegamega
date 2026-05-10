@@ -196,6 +196,7 @@ def genes(
                 print(f"Wet-lab steps: {summary['wetlab_total_steps']} total "
                       f"({summary['wetlab_pcrs']} PCRs + "
                       f"{summary['wetlab_pcr_cleanups']} PCR cleanups + "
+                      f"{summary['wetlab_quants']} PicoGreen quants + "
                       f"{summary['wetlab_assembly_reactions']} GG assemblies + "
                       f"{summary['wetlab_final_cleanups']} final cleanup + "
                       f"{summary['wetlab_transformations']} transformation)")
@@ -340,6 +341,7 @@ def costs(
         print(f"Wet-lab steps: {summary['wetlab_total_steps']} total "
               f"({summary['wetlab_pcrs']} PCRs + "
               f"{summary['wetlab_pcr_cleanups']} PCR cleanups + "
+              f"{summary['wetlab_quants']} PicoGreen quants + "
               f"{summary['wetlab_assembly_reactions']} GG assemblies + "
               f"{summary['wetlab_final_cleanups']} final cleanup + "
               f"{summary['wetlab_transformations']} transformation)")
