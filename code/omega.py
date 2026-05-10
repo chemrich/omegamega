@@ -18,6 +18,8 @@ from pricing import (
     annotate_pool_stats_with_primer_cost,
     cost_summary,
     write_cost_summary,
+    reagent_quantities,
+    write_reagent_summary,
     TwistOligoPoolPricing,
     DEFAULT_TWIST_TABLE,
 )
@@ -232,6 +234,16 @@ def genes(
                       f"{summary['wetlab_final_cleanups']} final cleanup + "
                       f"{summary['wetlab_transformations']} transformation)")
             print(f"Cost summary saved to {out}")
+
+            if 'n_pools' in summary:
+                enzyme_str = enzyme.value if hasattr(enzyme, 'value') else str(enzyme)
+                reagents = reagent_quantities(summary['n_pools'], enzyme_name=enzyme_str)
+                reagent_out = write_reagent_summary(output_dir, reagents)
+                print("Reagent quantities:")
+                for _, row in reagents.iterrows():
+                    print(f"  {row['reagent']:<38} {row['total_quantity']:>8.1f} {row['unit']}"
+                          f"  ({row['n_pools']} pools × {row['quantity_per_pool']:.4g} {row['unit']}/pool)")
+                print(f"Reagent summary saved to {reagent_out}")
         except Exception as exc:
             print(f"Pricing skipped: {exc}")
 
