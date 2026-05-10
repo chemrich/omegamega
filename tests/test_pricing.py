@@ -7,16 +7,10 @@ parser reads are reproduced; PII (name, address, phone) is omitted.
 """
 from __future__ import annotations
 
-import sys
-from pathlib import Path
-
 import pandas as pd
 import pytest
 
-ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT / "code"))
-
-from pricing import (  # noqa: E402
+from pricing import (
     DEFAULT_IDT_PRIMER_TABLE,
     DEFAULT_TWIST_TABLE,
     IDTPrimerPricing,
