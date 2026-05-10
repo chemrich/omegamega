@@ -80,9 +80,58 @@ uv run python ./code/omega.py costs --output_dir output/<existing_run>
 uv run python ./code/omega.py costs --output_dir output/<existing_run> --twist_quote true
 ```
 
-## Updating the table
+## Updating the Twist table
 
 Re-export the price grid from your Twist eCommerce account, replace
 `data/pricing/twist_oligo_pools.csv`, bump `retrieved` in the sibling
 `.meta.json`. The cache in `pricing._TABLE_CACHE` is keyed by `Path`, so a
 new path or a fresh process picks up changes automatically.
+
+## IDT primer pricing (per-pool primer pairs)
+
+`data/pricing/idt_primers.csv` encodes a per-base + per-plate-setup table
+keyed on `(scale, purification, format, length range)`. The bundled row
+was anchored to a real IDT cart snapshot for the 165 Subramanian
+orthogonal primers (`GetCartSnapShot 36128990`, retrieved 2026-05-10):
+
+| config | per-base | plate setup | example: 20 nt | example: 1 pair |
+|---|---|---|---|---|
+| 25nmole / STD / plate | $0.24 | $0.00 | $4.80 | $9.60 |
+
+Plate 1 = 96 primers × $4.80 = $460.80; plate 2 = 69 × $4.80 = $331.20;
+subtotal $792.00 (the rate per primer doesn't change between plates).
+
+IDT's API does **not** expose primer pricing — SciTools Plus only covers
+codon optimization, oligo analysis, and gBlock screening — so this is a
+table-only path (no `--idt_quote` live mode). Add new rows to the CSV for
+other scales (`100nmole`, `250nmole`), purifications (`HPLC`, `PAGE`),
+formats (`tube`), or length ranges as you collect quotes.
+
+When the bundled rate card is present, OMEGA does two things automatically:
+
+* `pool_stats.csv` gains `fwd_primer_cost_usd`, `rev_primer_cost_usd`,
+  `primer_pair_cost_usd` columns (one row per subpool).
+* `cost_summary.csv` gains `n_pools`, `n_primer_pairs`,
+  `primers_per_pool_avg_usd`, `primers_total_usd`, `idt_scale`,
+  `idt_purification`, `idt_format`.
+
+For libraries that reuse a primer set you've already ordered, treat
+`primers_total_usd` as a sunk cost rather than recurring.
+
+## Generating an IDT bulk-quote upload
+
+`scripts/generate_idt_quote_request.py` flattens an OMEGA paired-primer
+CSV (`fwd_name,fwd_sequence,rev_name,rev_sequence`) into IDT's plate-upload
+.xls format. Each output workbook holds up to 96 primers in row-major
+order (A1, A2, ..., A12, B1, ...). Use `--wells-per-plate 384` for
+384-well plates.
+
+```
+uv run python scripts/generate_idt_quote_request.py \
+    --input data/subramanian_orthogonal.csv \
+    --output-prefix data/pricing/idt_quote_request_subramanian_orthogonal
+```
+
+At the IDT bulk-upload page, set Scale = 25 nm and Purification = Standard
+Desalt — those aren't template fields. The IDT-supplied template lives at
+`data/pricing/example_plate-file-upload.xls` for reference.

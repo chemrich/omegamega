@@ -17,8 +17,11 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "code"))
 
 from pricing import (  # noqa: E402
+    DEFAULT_IDT_PRIMER_TABLE,
     DEFAULT_TWIST_TABLE,
+    IDTPrimerPricing,
     TwistOligoPoolPricing,
+    annotate_pool_stats_with_primer_cost,
     cost_summary,
     parse_oligo_pool_quote,
 )
@@ -142,3 +145,78 @@ def test_cost_summary_offline_only(tmp_path):
     assert summary["offline_length_bin"] == "len_251_300"
     assert summary["offline_pool_price_usd"] == 1030.0
     assert "live_pool_subtotal_usd" not in summary
+    assert "primers_total_usd" not in summary  # no pool_stats_df
+
+
+# ----- IDT primer pricing ---------------------------------------------------
+
+@pytest.fixture(scope="module")
+def idt_pricing() -> IDTPrimerPricing:
+    return IDTPrimerPricing.from_csv(DEFAULT_IDT_PRIMER_TABLE)
+
+
+@pytest.mark.parametrize("length,expected", [
+    (20, 4.80),    # subramanian primer length — anchored to real IDT quote
+    (1, 0.24),     # min length, $0.24/bp
+    (60, 14.40),   # max length supported by the bundled row (60 bp)
+    (10, 2.40),
+])
+def test_idt_quote_primer(idt_pricing, length, expected):
+    q = idt_pricing.quote_primer(length)
+    assert q.price_usd == pytest.approx(expected)
+    assert q.scale == "25nmole"
+    assert q.purification == "STD"
+    assert q.format == "plate"
+    assert q.per_base_usd == 0.24
+    assert q.plate_setup_usd == 0.0
+
+
+def test_idt_quote_primer_unknown_config_raises(idt_pricing):
+    with pytest.raises(ValueError, match="No IDT pricing row"):
+        idt_pricing.quote_primer(20, scale="100nmole")
+
+
+def test_idt_quote_primer_zero_length_raises(idt_pricing):
+    with pytest.raises(ValueError):
+        idt_pricing.quote_primer(0)
+
+
+def test_idt_quote_pool_pair_anchor(idt_pricing):
+    # Subramanian primers are all 20 nt → $4.80 each → $9.60 per pair
+    pair = idt_pricing.quote_pool_pair(20, 20)
+    assert pair["fwd_primer_cost_usd"] == 4.80
+    assert pair["rev_primer_cost_usd"] == 4.80
+    assert pair["pair_cost_usd"] == 9.60
+
+
+def test_annotate_pool_stats_with_primer_cost():
+    df = pd.DataFrame({
+        "pool": [0, 1],
+        "pfwd_sequence": ["A" * 20, "G" * 20],
+        "prev_sequence": ["T" * 20, "C" * 20],
+    })
+    out = annotate_pool_stats_with_primer_cost(df)
+    assert (out["fwd_primer_cost_usd"] == 4.80).all()
+    assert (out["rev_primer_cost_usd"] == 4.80).all()
+    assert (out["primer_pair_cost_usd"] == 9.60).all()
+    # original columns preserved
+    assert "pool" in out.columns
+    assert "pfwd_sequence" in out.columns
+
+
+def test_cost_summary_with_pool_stats():
+    oligo_df = pd.DataFrame({
+        "name": [f"o{i}" for i in range(60)],
+        "sequence": ["A" * 280] * 60,
+    })
+    pool_stats_df = pd.DataFrame({
+        "pool": [0, 1, 2],
+        "pfwd_sequence": ["A" * 20] * 3,
+        "prev_sequence": ["T" * 20] * 3,
+    })
+    summary = cost_summary(oligo_df, pool_stats_df=pool_stats_df)
+    assert summary["n_pools"] == 3
+    assert summary["n_primer_pairs"] == 3
+    assert summary["primers_per_pool_avg_usd"] == pytest.approx(9.60)
+    assert summary["primers_total_usd"] == pytest.approx(28.80)
+    assert summary["idt_scale"] == "25nmole"
