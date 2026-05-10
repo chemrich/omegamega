@@ -403,9 +403,9 @@ def wet_lab_steps(n_pools: int) -> dict:
     """Count of wet-lab manipulations to physically instantiate a designed
     library, following the README's assembly protocol.
 
-    Per subpool: 1 PCR amplification, 1 column cleanup, 1 Golden Gate
-    assembly. Then 1 final pool-and-cleanup, and 1 transformation of the
-    combined library.
+    Per subpool: 1 PCR amplification, 1 SPRI cleanup, 1 PicoGreen quant
+    (with normalization), 1 Golden Gate assembly. Then 1 final
+    pool-and-cleanup, and 1 transformation of the combined library.
 
     Optional/downstream steps (plating, colony picking, sequencing,
     re-PCR + re-digest after transformation) aren't counted because they
@@ -416,10 +416,11 @@ def wet_lab_steps(n_pools: int) -> dict:
     return {
         "wetlab_pcrs": n_pools,
         "wetlab_pcr_cleanups": n_pools,
+        "wetlab_quants": n_pools,
         "wetlab_assembly_reactions": n_pools,
         "wetlab_final_cleanups": 1,
         "wetlab_transformations": 1,
-        "wetlab_total_steps": 3 * n_pools + 2,
+        "wetlab_total_steps": 4 * n_pools + 2,
     }
 
 

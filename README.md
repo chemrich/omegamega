@@ -9,7 +9,7 @@ OMEGA designs oligopools that assemble into custom gene libraries via Golden Gat
 ## What this fork adds
 
 - **Cost accounting.** Per-run `cost_summary.csv` with Twist oligo-pool list price (offline tier table), IDT primer-pair cost (offline rate card), and an optional live `OLIGO_POOLS_REGULAR` quote against the Twist API. See [docs/PRICING_NOTES.md](docs/PRICING_NOTES.md).
-- **Wet-lab step counts.** Same summary reports the number of PCRs, cleanups, Golden Gate assemblies, and transformations to instantiate the library (3·N + 2 steps for N subpools).
+- **Wet-lab step counts.** Same summary reports the number of PCRs, SPRI cleanups, PicoGreen quants, Golden Gate assemblies, and transformations to instantiate the library (4·N + 2 steps for N subpools).
 - **Validated primer set.** [`data/subramanian_orthogonal.csv`](data/subramanian_orthogonal.csv) ships the 165 primers Subramanian et al. flagged as orthogonal in their Supplementary Table S1. Upstream's `data/test_primers.csv` ships all 20 primers they flagged as cross-reactive and is missing one validated primer (`subra_92`); we keep both for parity but recommend the validated set. See [docs/PRIMER_NOTES.md](docs/PRIMER_NOTES.md).
 - **Faster simulated annealing.** `predict_fidelity` was the bottleneck; the inner loop now uses a numpy-indexed view of the ligation matrix cached per DataFrame.
 - **FPbase benchmark corpus.** [`code/build_fpbase_corpus.py`](code/build_fpbase_corpus.py) pulls FPbase, codon-optimizes for E. coli (avoiding BsaI/BsmBI/BbsI sites), and bins by length for size-controlled benchmarking.
@@ -65,7 +65,7 @@ uv run python ./code/omega.py genes --config configs/genes_test.yml --njobs 8
 ```
 Twist offline list price: $6,181.00 (tier 5, len_251_300)
 IDT primer pairs: $528.00 (55 pools at $9.60/pool)
-Wet-lab steps: 167 total (55 PCRs + 55 PCR cleanups + 55 GG assemblies + 1 final cleanup + 1 transformation)
+Wet-lab steps: 222 total (55 PCRs + 55 PCR cleanups + 55 PicoGreen quants + 55 GG assemblies + 1 final cleanup + 1 transformation)
 Cost summary saved to output/<run>/cost_summary.csv
 ```
 
@@ -119,30 +119,33 @@ Default ligation data is `T4_18h_37C` (Potapov et al.); the bundled BsaI cycling
 
 ## Assembly protocol
 
-Adapted from [Twist's oligopool amplification guidelines](https://www.twistbioscience.com/sites/default/files/resources/2019-09/Guidelines_OligoPools_%20Amplification_29Aug19_Rev5.1.pdf). The wet-lab counts in `cost_summary.csv` enumerate steps 2, 4, 5, 10, and 11.
+Adapted from [Twist's oligopool amplification guidelines](https://www.twistbioscience.com/resources/protocol/twist-oligo-pool-amplification-guidelines) (FRM-001034 REV 8). The wet-lab counts in `cost_summary.csv` enumerate steps 2, 4, 6, 11, and 12.
 
-1. Dilute oligopool to 1 ng/µL with nuclease-free water.
+1. Resuspend the lyophilized oligopool in 10 mM Tris pH 8.0 to ≥20 ng/µL (total yield in ng is printed on the shipping tube).
 2. Set up one PCR reaction per subpool (Table 1).
-3. Amplify with the protocol in Table 2. **Note:** the annealing temperature in step 3 is optimized for Subramanian primers + KAPA HiFi HotStart ReadyMix; adjust if you're using different primers or polymerase.
-4. Column cleanup of each PCR reaction individually.
-5. Set up Golden Gate assembly per subpool (Table 3).
-6. Digest 2 hr at 37 °C.
-7. Add 1,000 U T4 Ligase ([NEB M0202T](https://www.neb.com/en-us/products/m0202-t4-dna-ligase)) — use the higher-concentration stock to keep volumes constant.
-8. Ligate 18 hr at 37 °C.
-9. Heat-inactivate T4 ligase 15 min at 65 °C.
-10. Combine all subpool assemblies into a single tube; final column cleanup of the pooled library.
-11. Transform.
+3. Amplify with the protocol in Table 2. **Notes:** (a) annealing temperature must be optimized for your primer sequences — 61 °C is a tested starting point for Subramanian primers; (b) cycle count is length-dependent per Twist: 6–10 cycles for 20–100 nt oligos, 10–12 for 100–150 nt, 12–14 for 151–350 nt. Minimizing cycles avoids overamplification bias. (c) Expected yield assuming 1.8× per cycle: 10 ng × 1.8¹² ≈ 12 µg per 25 µL reaction at 12 cycles (theoretical; primer concentration typically caps practical yield at ~1–2 µg). Either way, far in excess of the ng-scale insert mass needed for cleanup (step 4) and assembly (Table 3).
+4. SPRI cleanup of each PCR reaction at **1.0× ratio** (default: Omega Bio-Tek Mag-Bind TotalPure NGS; AMPure XP, NEBNext Sample Purification Beads, KAPA Pure Beads, and MagBio HighPrep PCR are interchangeable). Bind 5 min RT, magnet 2–5 min, 2× 80% EtOH wash on magnet, air dry until cracked but not over-dried, elute in 20–25 µL 10 mM Tris pH 8.0. See Table 4 for ratio guidance.
+5. Quantify each cleaned PCR product with **PicoGreen** (Quant-iT dsDNA assay) on a fluorescence plate reader — dsDNA-specific, scales to 96/384-well, and pairs cleanly with liquid-handler automation (e.g. Agilent Bravo) for many-subpool runs. Qubit dsDNA HS is a fine alternative for small N. Optional TapeStation or Fragalyzer QC on a few representative subpools to confirm a single clean band at expected size and rule out the side-peak (non-specific amplification) and post-peak hump (overamplification heteroduplex) failure modes Twist documents. Normalize all subpools to a common working concentration (e.g. 20 ng/µL) so the same insert volume goes into every assembly. **Per assembly:** ~135 ng insert at 18:1 molar with 75 ng of a ~3 kb vector and 300 bp insert (`mass_insert = 18 × (insert_bp / vector_bp) × mass_vector`).
+6. Set up Golden Gate assembly per subpool (Table 3).
+7. Digest 2 hr at 37 °C.
+8. Add 1,000 U T4 Ligase ([NEB M0202T](https://www.neb.com/en-us/products/m0202-t4-dna-ligase)) — use the higher-concentration stock to keep volumes constant.
+9. Ligate 18 hr at 37 °C.
+10. Heat-inactivate T4 ligase 15 min at 65 °C.
+11. Combine all subpool assemblies into a single tube; final column cleanup of the pooled library.
+12. Transform.
 
 If a downstream step needs PCR on the assembled library, run another digest afterward — empty vectors are smaller than complete assemblies and will be enriched in the PCR product.
 
-**Table 1 — PCR setup** (per 25 µL reaction)
+**Table 1 — PCR setup** (per 25 µL reaction; KAPA HiFi HotStart PCR Kit, Roche)
 
 | Component | Final concentration | Volume |
 |--|--|--|
-| Oligopool (1 ng/µL) | 0.04 ng/µL | 1 µL |
+| 5× KAPA HiFi Fidelity Buffer | 1× | 5 µL |
+| 10 mM dNTP mix | 0.3 mM each | 0.75 µL |
 | Forward primer (10 µM) | 0.3 µM | 0.75 µL |
 | Reverse primer (10 µM) | 0.3 µM | 0.75 µL |
-| 2× KAPA HiFi HotStart ReadyMix | 1× | 12.5 µL |
+| Oligopool (20 ng/µL) | 0.4 ng/µL (10 ng total) | 0.5 µL |
+| KAPA HiFi HotStart DNA Polymerase (1 U/µL) | 0.5 U/reaction | 0.5 µL |
 | Nuclease-free water | — | to 25 µL |
 
 **Table 2 — PCR protocol**
@@ -151,9 +154,9 @@ If a downstream step needs PCR on the assembled library, run another digest afte
 |--|--|--|
 | Initial denaturation | 95 °C | 3 min |
 | Denaturation | 98 °C | 20 sec |
-| Annealing | 61 °C | 15 sec |
+| Annealing | optimum (~61 °C for Subramanian primers) | 15 sec |
 | Extension | 72 °C | 15 sec |
-| Repeat steps 2–4 | — | 35 cycles |
+| Repeat steps 2–4 | — | 6–14 cycles (length-dependent; see step 3) |
 | Final extension | 72 °C | 1 min |
 
 **Table 3 — Golden Gate assembly** (per 20 µL reaction; T4 ligase added after a 2-hr digest)
@@ -165,6 +168,15 @@ If a downstream step needs PCR on the assembled library, run another digest afte
 | BsaI (15 U/µL) | 15 U |
 | T4 Ligase buffer (10×) | 2 µL |
 | Nuclease-free water | to 20 µL |
+
+**Table 4 — SPRI bead ratio** (volume bead : volume sample)
+
+| Ratio | Retains down to | Use when |
+|--|--|--|
+| 1.8× | ~100 bp | Twist's general recommendation; does not size-select away primer dimers |
+| 1.2× | ~150 bp | Drops most primer dimers; conservative recovery |
+| **1.0×** | **~200 bp** | **Default for OMEGA's 300 nt amplicons — drops dimers, retains >90% of target** |
+| 0.8× | ~400 bp | Too aggressive for 300 bp amplicons; appropriate post-assembly to clean up ~3 kb assembled libraries |
 
 ## Options reference
 

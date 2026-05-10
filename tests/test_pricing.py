@@ -224,24 +224,26 @@ def test_cost_summary_with_pool_stats():
     # wet-lab counts piggy-back on pool_stats_df availability
     assert summary["wetlab_pcrs"] == 3
     assert summary["wetlab_pcr_cleanups"] == 3
+    assert summary["wetlab_quants"] == 3
     assert summary["wetlab_assembly_reactions"] == 3
     assert summary["wetlab_final_cleanups"] == 1
     assert summary["wetlab_transformations"] == 1
-    assert summary["wetlab_total_steps"] == 11  # 3*3 + 2
+    assert summary["wetlab_total_steps"] == 14  # 4*3 + 2
 
 
 # ----- wet-lab step counts --------------------------------------------------
 
 @pytest.mark.parametrize("n_pools,total", [
-    (1, 5),     # 3 + 2
-    (7, 23),    # 7-pool gfp library
-    (55, 167),  # 55-pool fpbase library
+    (1, 6),     # 4 + 2
+    (7, 30),    # 7-pool gfp library
+    (55, 222),  # 55-pool fpbase library
 ])
 def test_wet_lab_steps_total(n_pools, total):
     s = wet_lab_steps(n_pools)
     assert s["wetlab_total_steps"] == total
     assert s["wetlab_pcrs"] == n_pools
     assert s["wetlab_pcr_cleanups"] == n_pools
+    assert s["wetlab_quants"] == n_pools
     assert s["wetlab_assembly_reactions"] == n_pools
     assert s["wetlab_final_cleanups"] == 1
     assert s["wetlab_transformations"] == 1

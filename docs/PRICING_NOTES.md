@@ -72,7 +72,7 @@ counts are added too:
 n_pools,n_primer_pairs,
 primers_per_pool_avg_usd,primers_total_usd,
 idt_scale,idt_purification,idt_format,
-wetlab_pcrs,wetlab_pcr_cleanups,wetlab_assembly_reactions,
+wetlab_pcrs,wetlab_pcr_cleanups,wetlab_quants,wetlab_assembly_reactions,
 wetlab_final_cleanups,wetlab_transformations,wetlab_total_steps
 ```
 
