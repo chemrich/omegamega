@@ -30,6 +30,8 @@ def genes(
         upstream_bbsite: str,
         downstream_bbsite: str,
         primers: str,
+        ngenes_per_pool: Optional[int] = None,
+
         output_dir: str = 'output',
 
         other_used_sites: Union[list[str], None] = None,
@@ -119,8 +121,10 @@ def genes(
         other_used_sites=other_used_sites,
         illegal_dna_sequences=illegal_dna_sequences,
         njunctions=njunctions,
-        min_size=min_size
+        min_size=min_size,
+        ngenes_per_pool=ngenes_per_pool
     )
+
     
     # assign optimization seeds - use nopt_runs to get random_opt seeds
     random_seeds = None
