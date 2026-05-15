@@ -90,7 +90,8 @@ class Library:
         other_used_sites: Union[np.ndarray, None],
         illegal_dna_sequences: tuple[str],
         njunctions: int = 50,
-        min_size: int = 40
+        min_size: int = 40,
+        ngenes_per_pool: Optional[int] = None
     ):
 
         self.genes = genes
@@ -103,6 +104,8 @@ class Library:
         self.illegal_dna_sequences = illegal_dna_sequences
         self.njunctions = njunctions
         self.min_size = min_size
+        self.ngenes_per_pool = ngenes_per_pool
+
 
 
         self._max_primer_space = self.__get_max_primer_space()
@@ -251,8 +254,12 @@ class Library:
             group_oligo_len = min(group_oligo_len, self.oligo_len)
             
             # calculate genes per pool for this nfrags
-            ngenes_per_pool = (self.njunctions - 2 - len(self.other_used_sites)) // (nfrags - 1) if nfrags > 1 else len(gene_list)
+            if self.ngenes_per_pool is not None:
+                ngenes_per_pool = self.ngenes_per_pool
+            else:
+                ngenes_per_pool = (self.njunctions - 2 - len(self.other_used_sites)) // (nfrags - 1) if nfrags > 1 else len(gene_list)
             if ngenes_per_pool == 0: ngenes_per_pool = 1
+
             
             planned.append({
                 'nfrags': nfrags,
@@ -306,8 +313,12 @@ class Library:
             genes = test_plan[i]['genes']
             group_max_gene = max(len(gene[1]) for gene in genes)
             test_plan[i]['oligo_len'] = min(ceil(group_max_gene / nfrags) + 78, self.oligo_len)
-            ngenes_per_pool = (self.njunctions - 2 - len(self.other_used_sites)) // (nfrags - 1)
+            if self.ngenes_per_pool is not None:
+                ngenes_per_pool = self.ngenes_per_pool
+            else:
+                ngenes_per_pool = (self.njunctions - 2 - len(self.other_used_sites)) // (nfrags - 1)
             if ngenes_per_pool <= 0: ngenes_per_pool = 1
+
             test_plan[i]['ngenes_per_pool'] = ngenes_per_pool
             test_plan[i]['npools'] = ceil(len(genes) / ngenes_per_pool)
             
@@ -529,7 +540,7 @@ class Pool:
             self.ligation_data
         )
         min_site_fidelity = predict_minimum_site(
-            [np.array([df.ggsite.to_numpy() for df in self.optimized_sites]).flatten()] + [[self.upstream_bbsite], [self.downstream_bbsite]],
+            np.concatenate([df.ggsite.to_numpy() for df in self.optimized_sites]).tolist() + [self.upstream_bbsite, self.downstream_bbsite],
             self.ligation_data
         )
 
@@ -658,7 +669,9 @@ class SAPool:
             while True:
                 change_idx: int = random.choice(range(len(self.genes)))
                 # pool sites from the genes
-                unchanged_pool_sites: np.ndarray[str] = np.hstack([g.assigned_sites.ggsite.to_numpy() for i, g in enumerate(self.genes) if i != change_idx])
+                other_genes_sites = [g.assigned_sites.ggsite.to_numpy() for i, g in enumerate(self.genes) if i != change_idx]
+                unchanged_pool_sites: np.ndarray[str] = np.hstack(other_genes_sites) if other_genes_sites else np.array([], dtype=object)
+
                 # these are a new set of GG sites from change_idx gene - they have to actually be assigned to the gene
                 candidates: pd.DataFrame = self.genes[change_idx].shuffle_site(pool_ggsites=unchanged_pool_sites, min_dist=40)
 
@@ -723,7 +736,7 @@ class SAPool:
             self.ligation_data
         )
         self.min_site_fidelity = predict_minimum_site(
-            list(chain(*[df.ggsite.tolist() for df in list(self.optimized_sites.values())])) + [[self.upstream_bbsite], [self.downstream_bbsite]],
+            list(chain(*[df.ggsite.tolist() for df in list(self.optimized_sites.values())])) + [self.upstream_bbsite, self.downstream_bbsite],
             self.ligation_data
         )
 
