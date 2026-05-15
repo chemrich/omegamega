@@ -145,6 +145,8 @@ class Library:
         else:
             all_primers = self.primers
 
+
+
         if len(all_primers) < total_pools:
             raise ValueError(f'Not enough primers for estimated number of pools ({total_pools} needed, {len(all_primers)} available).')
             

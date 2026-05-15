@@ -87,6 +87,10 @@ def genes(
             uses a different random seed.
         njobs: Number of CPUs to use for simultaneous optimization runs. Each CPU executes
             one run.
+        primers: File path to primers in csv format.
+        primer_mode: Mode for assigning primers to pools. Choices are 'unique' (default) or 'matrix'.
+
+
 
     """
     #pylint: disable=too-many-arguments, too-many-locals
