@@ -91,7 +91,8 @@ class Library:
         illegal_dna_sequences: tuple[str],
         njunctions: int = 50,
         min_size: int = 40,
-        ngenes_per_pool: Optional[int] = None
+        ngenes_per_pool: Optional[int] = None,
+        primer_mode: str = 'unique'
     ):
 
         self.genes = genes
@@ -105,6 +106,8 @@ class Library:
         self.njunctions = njunctions
         self.min_size = min_size
         self.ngenes_per_pool = ngenes_per_pool
+        self.primer_mode = primer_mode
+
 
 
 
@@ -134,11 +137,20 @@ class Library:
         total_pools = sum(p['npools'] for p in planned)
         print(f"Planning library: {total_genes} genes stratified into {len(planned)} length groups, {total_pools} pools total.")
 
-        if len(self.primers) < total_pools:
-            raise ValueError(f'Not enough primers for estimated number of pools ({total_pools} needed, {len(self.primers)} available).')
+        if self.primer_mode == 'matrix':
+            fwds = list({p[0].sequence: p[0] for p in self.primers}.values())
+            revs = list({p[1].sequence: p[1] for p in self.primers}.values())
+            import itertools
+            all_primers = list(itertools.product(fwds, revs))
+        else:
+            all_primers = self.primers
 
-        all_primers = self.primers
+        if len(all_primers) < total_pools:
+            raise ValueError(f'Not enough primers for estimated number of pools ({total_pools} needed, {len(all_primers)} available).')
+            
         primer_idx = 0
+
+
         
         jobs = []
         pool_meta = []

@@ -31,6 +31,8 @@ def genes(
         downstream_bbsite: str,
         primers: str,
         ngenes_per_pool: Optional[int] = None,
+        primer_mode: str = 'unique',
+
 
         output_dir: str = 'output',
 
@@ -122,8 +124,10 @@ def genes(
         illegal_dna_sequences=illegal_dna_sequences,
         njunctions=njunctions,
         min_size=min_size,
-        ngenes_per_pool=ngenes_per_pool
+        ngenes_per_pool=ngenes_per_pool,
+        primer_mode=primer_mode
     )
+
 
     
     # assign optimization seeds - use nopt_runs to get random_opt seeds
